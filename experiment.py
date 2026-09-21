@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent
 UPSTREAM = ROOT / 'external/cartridges'
 os.environ['CARTRIDGES_DIR'] = str(UPSTREAM)
 os.environ['CARTRIDGES_OUTPUT_DIR'] = str(ROOT / 'artifacts')
+os.environ['MPLBACKEND'] = 'Agg'
 sys.path.insert(0, str(UPSTREAM))
 
 
