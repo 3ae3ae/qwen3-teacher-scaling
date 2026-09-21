@@ -5,6 +5,7 @@
 공개 Cartridges Qwen 예제를 기준으로 생성 모델과 scoring teacher 규모를 비교한다. Student는 Qwen3-4B이며, 평가는 LongHealth·MTOB를 사용한다.
 
 - [실험 설계](EXPERIMENT_PLAN.md)
+- [A pilot 결과: LongHealth](docs/A_PILOT_RESULT.md)
 - [Colab notebook](notebooks/qwen3_teacher_scaling.ipynb)
 - [재현 정보·변경 범위](docs/REPRODUCIBILITY.md)
 
@@ -24,4 +25,4 @@
 
 평가 데이터는 실행 시 공식 배포처에서 받는다. 데이터별 조건은 [평가 자료와 라이선스](docs/REPRODUCIBILITY.md#평가-자료와-라이선스)에 정리되어 있다.
 
-검증: 코드·notebook 정적 검사 완료. 설정 일치·연결 검사는 Colab 설치 셀에서 실행한다. Colab GPU 전체 실행은 검증 전이다.
+검증: Colab 2026.07·A100 40GB에서 A/LongHealth의 smoke·pilot 실행을 완료했다. Pilot은 200문항 중 44문항을 맞혔다(22.0%). 설정 일치·연결 검사는 Colab 설치 셀에서 실행한다.

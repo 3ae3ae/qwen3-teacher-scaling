@@ -1,0 +1,69 @@
+{
+  "release": "v0.1.4",
+  "source_revision": "4cb6fe9e54cd5cd324edf7a36de61b5c43935340",
+  "condition": "A",
+  "benchmark": "LongHealth",
+  "profile": "pilot",
+  "seed": 42,
+  "model": "Qwen/Qwen3-4B",
+  "model_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "dataset_revision": "479922279ce8fa528fe2cd87d854c6a2f8365d21",
+  "samples": 512,
+  "cartridge_tokens": 2048,
+  "batch_size": 32,
+  "packed_length": 2048,
+  "epochs": 2,
+  "optimizer_steps": 10,
+  "initial": {
+    "correct": 34,
+    "questions": 200,
+    "accuracy": 0.17,
+    "missing_answer_tags": 155
+  },
+  "final": {
+    "correct": 44,
+    "questions": 200,
+    "accuracy": 0.22,
+    "missing_answer_tags": 124
+  },
+  "reference": {
+    "url": "https://arxiv.org/html/2508.17032",
+    "table": 1,
+    "correct": 71,
+    "questions": 200,
+    "accuracy": 0.355,
+    "optimizer_steps": 512,
+    "batch_size": 128,
+    "packed_length": 1024,
+    "cartridge_tokens": 2048
+  },
+  "improvement_percentage_points": 5.0,
+  "difference_from_paper_percentage_points": -13.5,
+  "train_process_seconds_including_evaluation": 2006.1469805429997,
+  "peak_cuda_allocated_gib": 21.24,
+  "first_logged_loss": 0.6993,
+  "last_logged_loss": 0.5824,
+  "checkpoint_sha256": "8862611c02c95a7856d7c7ad526ea016ec2a58e7c4f53e6102f4249215be37cd",
+  "code_sha256": "0bdc8a067a4f64212f6e7b6ae32bd6a8c9b99edd1f7667a3017ab46ce06a2943",
+  "patch_sha256": "7dc0ddb3636b08a26db40c9617e946374bfe30b74617e7b9f86bf05e8a89627a",
+  "lock_sha256": "c10552b7598c1c0433e041a0408292ed878c2fec1cf7d2ec5272e2ef9cc56fee",
+  "unique_evaluation_questions": 200,
+  "tagged_correct": 30,
+  "fallback_correct": 14,
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Linux-6.6.122+-x86_64-with-glibc2.35",
+    "torch": "2.6.0+cu124",
+    "cuda": "12.4",
+    "gpu": "NVIDIA A100-SXM4-40GB"
+  },
+  "scoring": {
+    "target_tokens": 372394,
+    "same_teacher_logprob_mae": 0.056530812041410534,
+    "same_teacher_logprob_max_abs": 10.526836395263672,
+    "seconds": 109.96330638100017
+  },
+  "packed_batches_per_epoch": 168,
+  "initial_cache_sha256": "2be7f005c9f88638846f59671a10afe383db31460108b68f7e32cec11b241d41",
+  "date": "2026-09-21"
+}

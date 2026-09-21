@@ -50,4 +50,4 @@ PyTorch 2.6.0·Transformers 4.53.0은 Tokasaurus의 고정 의존성이며 Cartr
 
 ## 검증 범위
 
-CPU 검사는 공개 예제와 main 설정의 일치, tokenizer·parquet·토큰 위치, 원본 sparse 처리, cache 복원, 데이터 문항 수·채점 함수와 notebook 구문을 확인한다. GPU 서버 시작, 실제 학습·추론, 전체 notebook 실행은 검증 전이다. Python 패키지 lockfile은 해결된 설치 목록이며 GPU 실행 검증 결과와 구분한다.
+CPU 검사는 공개 예제와 main 설정의 일치, tokenizer·parquet·토큰 위치, 원본 sparse 처리, cache 복원, 데이터 문항 수·채점 함수와 notebook 구문을 확인한다. Colab 2026.07·A100 40GB에서 A/LongHealth의 합성 서버, scoring, 학습, 200문항 평가와 checkpoint 저장을 검증했다. 실행 범위와 수치는 [A pilot 결과](A_PILOT_RESULT.md)에 기록했다.
