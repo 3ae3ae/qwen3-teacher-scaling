@@ -125,6 +125,22 @@ def main():
             compile(''.join(cell['source']),'notebook','exec')
             assert cell['execution_count'] is None and not cell['outputs']
     checks.append('notebook_syntax')
+    titles = ['# @title 데이터 준비', '# @title 합성과 scoring', '# @title 학습 또는 재평가']
+    cells = {''.join(c['source']).splitlines()[0]: ''.join(c['source'])
+             for c in notebook['cells'] if c['cell_type'] == 'code'}
+    for mode in ['train', 'evaluate']:
+        calls = []
+        def fake_stage(stage, **kwargs):
+            calls.append(stage)
+            return {'evaluations': [{'accuracy': 0.5}], 'accuracy': 0.5}
+        scope = {'MODE': mode, 'TRAIN_SEEDS': [42], 'run_stage': fake_stage, 'display': lambda _: None}
+        for title in titles:
+            exec(compile(cells[title], 'notebook-routing', 'exec'), scope)
+        expected = (['prepare'] + ['synthesize', 'score', 'score'] * 2 + ['train'] * 4
+                    if mode == 'train' else ['evaluate'] * 4)
+        assert calls == expected, (mode, calls)
+        assert len(scope['rows']) == 4
+    checks.append('notebook_train_evaluate_routing')
     report = {'status':'passed','device':'cpu','model_weights_loaded':False,'checks':checks,
               'protocol_version':cfg['protocol_version'],'code_sha256':ex.sha(ROOT/'experiment.py'),
               'patch_sha256':ex.sha(ROOT/'patches/cartridges.patch'),'notebook_sha256':ex.sha(ROOT/'notebooks/qwen3_teacher_scaling.ipynb')}

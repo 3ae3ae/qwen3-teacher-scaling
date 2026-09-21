@@ -2,6 +2,7 @@
 
 ## 고정한 소스
 
+- 실험 코드: notebook의 `SOURCE_REVISION`에 고정한 Git commit. 실행 시 `study.json`에 기록한다.
 - Cartridges: `ef34ba97a06049c34820506e2c283746284ae5f0`
 - Tokasaurus: `9ccbb92ed5c042c19b262db3791f4330dc3c87d2` — 공개 Cartridges 배포 예제가 참조하는 `geoff/cartridges` branch의 고정 commit.
 - 모델·데이터 revision: [experiment.json](../configs/experiment.json)
