@@ -1,6 +1,6 @@
 # Qwen3 Teacher Scaling for Cartridges
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.1.1/notebooks/qwen3_teacher_scaling.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.1.2/notebooks/qwen3_teacher_scaling.ipynb)
 
 공개 Cartridges Qwen 예제를 기준으로 생성 모델과 scoring teacher 규모를 비교한다. Student는 Qwen3-4B이며, 평가는 LongHealth·MTOB를 사용한다.
 
@@ -11,7 +11,7 @@
 ## Colab 실행
 
 1. 위의 **Open in Colab** 버튼으로 노트북을 연다.
-2. Python 3.12 GPU 런타임을 선택한다.
+2. 런타임 버전 `2026.07`(Python 3.12)과 GPU를 선택한다.
 3. 상단에서 `CONDITION`, `MODE`, `BENCHMARK`, `PROFILE`을 선택하고 셀을 순서대로 실행한다. 소스 준비 셀은 고정된 commit의 실험 소스를 자동으로 내려받는다.
 
 `CONDITION`에서 A·B·C·D 중 하나를 선택한다. 기본값은 A이며, `all`은 네 조건을 실행한다. 같은 `RUN_NAME`·benchmark·profile에서 조건을 바꾸면 공통 데이터와 완료된 단계를 재사용한다.
