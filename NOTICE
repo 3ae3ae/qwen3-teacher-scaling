@@ -7,7 +7,6 @@ Original license notice: Copyright 2021 The Meerkat Team.
 Modifications to the upstream files are distributed in patches/cartridges.patch
 and described in docs/REPRODUCIBILITY.md.
 
-The synthesis server is ScalingIntelligence/tokasaurus (Apache-2.0):
-https://github.com/ScalingIntelligence/tokasaurus
-Revision: 9ccbb92ed5c042c19b262db3791f4330dc3c87d2
-Its source is fetched unchanged during setup.
+Public training conversations are downloaded from HazyResearch on Hugging Face.
+Dataset revisions and attribution are recorded in configs/experiment.json
+and docs/REPRODUCIBILITY.md.

@@ -24,27 +24,6 @@ index 5cd2590..9e2dc75 100644
  
  
  
-diff --git a/cartridges/data/mtob/resources.py b/cartridges/data/mtob/resources.py
-index 0bb06d8..22da348 100644
---- a/cartridges/data/mtob/resources.py
-+++ b/cartridges/data/mtob/resources.py
-@@ -13,6 +13,7 @@ class MTOBResource(Resource):
-         setup: Literal["latex_and_sentences", "medium_and_sentences"]
-         seed_prompts: List[SEED_TYPES] = ["generic"]
-         tokenizer: str = "Qwen/Qwen3-4b"
-+        tokenizer_revision: str | None = None
-         min_chunk_size: int = 512
-         max_chunk_size: int = 4096
-         
-@@ -25,7 +26,7 @@ class MTOBResource(Resource):
-             include_wordlist=False,
-             include_sentences=True,
-         )
--        self.tokenizer = AutoTokenizer.from_pretrained(self.config.tokenizer)
-+        self.tokenizer = AutoTokenizer.from_pretrained(self.config.tokenizer, revision=self.config.tokenizer_revision)
- 
-         self.tokens = self.tokenizer.encode(self.content)
- 
 diff --git a/cartridges/initialization/tokenization_utils.py b/cartridges/initialization/tokenization_utils.py
 index d3fdcbf..890f6bc 100644
 --- a/cartridges/initialization/tokenization_utils.py

@@ -1,15 +1,10 @@
 """Teacher-size comparison using pinned Cartridges benchmark recipes."""
 import argparse
-import asyncio
-from contextlib import contextmanager
 import hashlib
 import importlib
 import json
 import os
 from pathlib import Path
-import random
-import signal
-import socket
 import subprocess
 import sys
 import time
@@ -38,7 +33,8 @@ def write_json(path, value):
 
 
 def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
 def files_hash(paths):
@@ -48,15 +44,12 @@ def files_hash(paths):
 
 
 def verify_source(cfg):
-    for name, spec in [('cartridges', cfg['upstream']), ('tokasaurus', cfg['tokasaurus'])]:
-        directory = ROOT / 'external' / name
-        revision = subprocess.check_output(['git', '-C', str(directory), 'rev-parse', 'HEAD'], text=True).strip()
-        if revision != spec['revision']:
-            raise ValueError(f'{name}: revision mismatch')
-        actual = subprocess.check_output(['git', '-C', str(directory), 'diff', '--binary'])
-        expected = (ROOT / 'patches/cartridges.patch').read_bytes() if name == 'cartridges' else b''
-        if actual != expected:
-            raise ValueError(f'{name}: source differs from pinned patch')
+    revision = subprocess.check_output(['git', '-C', str(UPSTREAM), 'rev-parse', 'HEAD'], text=True).strip()
+    if revision != cfg['upstream']['revision']:
+        raise ValueError('Cartridges revision mismatch')
+    actual = subprocess.check_output(['git', '-C', str(UPSTREAM), 'diff', '--binary'])
+    if actual != (ROOT / 'patches/cartridges.patch').read_bytes():
+        raise ValueError('Cartridges source differs from pinned patch')
 
 
 def reference_configs(benchmark):
@@ -87,7 +80,10 @@ def tokenizer_for(cfg, size='4B'):
 def recipe(cfg, benchmark, profile):
     train, synth = reference_configs(benchmark)
     overrides = cfg['profiles'][profile]
-    return train, synth, {'samples': synth.num_samples * len(train.dataset.data_sources),
+    sources = cfg['benchmarks'][benchmark]['conversations']
+    if [s['repository'] for s in sources] != [s.path for s in train.dataset.data_sources]:
+        raise ValueError('Public conversation sources differ from the upstream training recipe')
+    return train, synth, {'samples': sum(s['rows'] for s in sources),
                          'max_steps': -1, 'eval_questions': None, **overrides}
 
 
@@ -97,17 +93,6 @@ def bind_data(cfg, out):
     ds = cfg['benchmarks']['longhealth']
     utils.DATASET_PATH = f"https://raw.githubusercontent.com/kbressem/LongHealth/{ds['revision']}/{ds['file']}"
     load.dataset_root = out / 'data/mtob'
-
-
-def resource_config(cfg, benchmark, profile):
-    _, synth = reference_configs(benchmark)
-    resource = synth.synthesizer.resources[0]
-    if benchmark == 'longhealth' and profile == 'smoke':
-        resource.patient_ids = cfg['benchmarks'][benchmark]['development_patients']
-    if benchmark == 'mtob':
-        resource.tokenizer = cfg['models']['4B']['id']
-        resource.tokenizer_revision = cfg['models']['4B']['revision']
-    return resource
 
 
 def download(url, path, expected):
@@ -123,7 +108,7 @@ def download(url, path, expected):
 
 
 def prepare(cfg, benchmark, profile, out):
-    train, synth, s = recipe(cfg, benchmark, profile)
+    _, _, s = recipe(cfg, benchmark, profile)
     data = out / 'data'
     data.mkdir(parents=True, exist_ok=True)
     ds = cfg['benchmarks'][benchmark]
@@ -143,47 +128,75 @@ def prepare(cfg, benchmark, profile, out):
     other = tokenizer_for(cfg, '8B')
     if tokenizer.get_vocab() != other.get_vocab() or tokenizer.chat_template != other.chat_template:
         raise ValueError('Teacher/student tokenizers differ')
-    resource = resource_config(cfg, benchmark, profile).instantiate()
-    corpus = resource.to_string()
-    (data / 'corpus.txt').write_text(corpus)
-    prompts = []
-    random.seed(cfg['prompt_seed'])
-    for start in range(0, s['samples'], synth.batch_size):
-        context, seeds = asyncio.run(resource.sample_prompt(min(synth.batch_size, s['samples'] - start)))
-        prompts.append({'context': context, 'seed_prompts': seeds})
-    write_json(data / 'prompts.json', prompts)
-    return {'benchmark': benchmark, 'samples_per_generator': s['samples'], 'generation_batch': synth.batch_size,
-            'corpus_tokens': len(tokenizer.encode(corpus)), 'source_url': url,
+    sources = prepare_conversations(ds['conversations'], s['samples'], data, tokenizer)
+    return {'benchmark': benchmark, 'samples': s['samples'], 'public_sources': sources,
+            'conversation_sha256': files_hash(conversation_paths(out)), 'source_url': url,
             'files': {p.relative_to(data).as_posix(): sha(p) for p in sorted(data.rglob('*')) if p.is_file()},
             'tokenizer_vocab_sha256': hashlib.sha256(json.dumps(tokenizer.get_vocab(), sort_keys=True).encode()).hexdigest(),
             'chat_template_sha256': hashlib.sha256(tokenizer.chat_template.encode()).hexdigest()}
 
 
-from cartridges.clients.tokasaurus import TokasaurusClient
 from cartridges.initialization import KVFromText
 from cartridges.cache import TrainableCache
 
 
-class RecordingClient(TokasaurusClient):
-    """Preserve native completions and logprobs; record prompts for forced scoring."""
-    class Config(TokasaurusClient.Config):
-        revision: str
+def public_prompt(row, tokenizer):
+    """Reconstruct a one-round scoring prompt; infer thinking from stored tokens."""
+    if [m.role for m in row.messages] != ['user', 'assistant'] or not row.system_prompt:
+        raise ValueError('Expected a public one-round conversation with source context')
+    answer = list(row.messages[-1].token_ids)
+    original = row.messages[-1].top_logprobs
+    if not answer or original is None or int(original.shape[0]) != len(answer):
+        raise ValueError('Public answer tokens/logprobs are missing or misaligned')
+    if row.metadata.get('tool_calls') or row.metadata.get('initial_system_prompt') != row.system_prompt:
+        raise ValueError('Unexpected public conversation context')
+    think = tokenizer.convert_tokens_to_ids('<think>')
+    thinking = answer[0] == think
+    if not thinking and any(t in answer for t in [think, tokenizer.convert_tokens_to_ids('</think>')]):
+        raise ValueError('Ambiguous public thinking token sequence')
+    messages = [{'role': 'system', 'content': row.system_prompt}, row.messages[0].to_message_dict()]
+    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True,
+                                          continue_final_message=False, enable_thinking=thinking)
+    return tokenizer.encode(prompt, add_special_tokens=False), thinking
 
-    def __init__(self, config):
-        from transformers import AutoTokenizer
-        super().__init__(config)
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, revision=config.revision)
-        self.answer_prompts = []
 
-    async def _send_requests(self, requests, modal_upstream_id=None, use_cartridge_endpoint=False):
-        if requests and requests[0].get('top_logprobs'):
-            self.answer_prompts = []
-            for request in requests:
-                prompt = self.tokenizer.apply_chat_template(request['messages'], tokenize=False,
-                    add_generation_prompt=True, continue_final_message=False,
-                    **request.get('apply_chat_template_overrides', {}))
-                self.answer_prompts.append(self.tokenizer.encode(prompt, add_special_tokens=False))
-        return await super()._send_requests(requests, modal_upstream_id, use_cartridge_endpoint=use_cartridge_endpoint)
+def prepare_conversations(sources, samples, data, tokenizer):
+    from huggingface_hub import hf_hub_download
+    import pyarrow.parquet as pq
+    from cartridges.structs import Conversation, write_conversations
+    used, count, batch_idx = [], 0, 0
+    for source in sources:
+        source_count = 0
+        for filename in source['files']:
+            if count == samples:
+                return used
+            path = Path(hf_hub_download(source['repository'], filename, repo_type='dataset', revision=source['revision']))
+            parquet = pq.ParquetFile(path)
+            selected = min(parquet.metadata.num_rows, samples - count)
+            used.append({'repository': source['repository'], 'revision': source['revision'],
+                         'file': filename, 'sha256': sha(path), 'rows': parquet.metadata.num_rows,
+                         'selected_rows': selected})
+            offset = 0
+            for batch in parquet.iter_batches(batch_size=32):
+                rows = [Conversation.from_dict(r) for r in batch.to_pylist()[:samples - count]]
+                for i, row in enumerate(rows):
+                    prompt, thinking = public_prompt(row, tokenizer)
+                    row.metadata.update(prompt_ids=prompt, inferred_enable_thinking=thinking,
+                        source_repository=source['repository'], source_file=filename, source_row=offset + i)
+                destination = data / f'conversations-{batch_idx:05d}.parquet'
+                temporary = destination.with_suffix('.tmp.parquet')
+                write_conversations(rows, temporary)
+                temporary.replace(destination)
+                count += len(rows); offset += len(rows); batch_idx += 1
+                if count == samples:
+                    break
+            source_count += parquet.metadata.num_rows
+            print(json.dumps({'public_file': filename, 'samples': count, 'total': samples}), flush=True)
+        if count < samples and source_count != source['rows']:
+            raise ValueError('Public source row count mismatch')
+    if count != samples:
+        raise ValueError('Insufficient public conversations')
+    return used
 
 
 class SharedInitializer(KVFromText):
@@ -201,130 +214,18 @@ class SharedInitializer(KVFromText):
         return cache
 
 
-@contextmanager
-def server(cfg, out, generator):
-    """Run the original server in its own process, releasing its GPU after synthesis."""
-    from huggingface_hub import snapshot_download
-    import requests
-    spec = cfg['models'][generator]
-    snapshot = Path(snapshot_download(spec['id'], revision=spec['revision'],
-        allow_patterns=['*.json', '*.safetensors', '*.model', '*.txt', '*.tiktoken']))
-    work = out / 'models'
-    link = work / spec['id']
-    link.parent.mkdir(parents=True, exist_ok=True)
-    if link.is_symlink():
-        if link.resolve() != snapshot.resolve():
-            raise ValueError('Model snapshot mismatch')
-    elif link.exists():
-        raise FileExistsError(link)
-    else:
-        link.symlink_to(snapshot, target_is_directory=True)
-    with socket.socket() as sock:
-        sock.bind(('127.0.0.1', 0))
-        port = sock.getsockname()[1]
-    command = [sys.executable, '-m', 'tokasaurus.entry', f"model={spec['id']}", f'port={port}',
-               f"kv_cache_num_tokens={cfg['tokasaurus']['kv_cache_num_tokens']}",
-               'max_topk_logprobs=20', 'max_seqs_per_forward=128', 'dp_size=1', 'wandb_enabled=False']
-    with (out / f'server-{generator}.log').open('a') as log:
-        proc = subprocess.Popen(command, cwd=work, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-        try:
-            url = f'http://127.0.0.1:{port}'
-            deadline = time.monotonic() + 900
-            while time.monotonic() < deadline:
-                if proc.poll() is not None:
-                    raise RuntimeError(f'Tokasaurus exited: see server-{generator}.log')
-                try:
-                    response = requests.get(url + '/v1/models', timeout=2)
-                    if response.ok and response.json()['data'][0]['id'].lower() == spec['id'].lower():
-                        break
-                except requests.RequestException:
-                    pass
-                time.sleep(1)
-            else:
-                raise TimeoutError('Tokasaurus startup timeout')
-            yield url
-        finally:
-            # The server spawns model/manager children; terminate its whole process group.
-            try:
-                os.killpg(proc.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                proc.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                pass
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            proc.wait()
+def conversation_paths(out):
+    return sorted((out / 'data').glob('conversations-[0-9][0-9][0-9][0-9][0-9].parquet'))
 
 
-def conversation_paths(out, generator):
-    return sorted((out / f'G{generator}').glob('conversations-[0-9][0-9][0-9][0-9][0-9].parquet'))
-
-
-def synthesize(cfg, benchmark, profile, out, generator):
-    from cartridges.structs import write_conversations, read_conversations
-    _, reference, s = recipe(cfg, benchmark, profile)
-    prompts = read_json(out / 'data/prompts.json')
-    directory = out / f'G{generator}'
-    directory.mkdir(exist_ok=True)
-    paths = conversation_paths(out, generator)
-    if [p.name for p in paths] != [f'conversations-{i:05d}.parquet' for i in range(len(paths))]:
-        raise ValueError('Conversation shards are not contiguous')
-    for i, path in enumerate(paths):
-        if len(read_conversations(path)) != len(prompts[i]['seed_prompts']):
-            raise ValueError('Incomplete conversation batch')
-    if len(paths) < len(prompts):
-        spec = cfg['models'][generator]
-        with server(cfg, out, generator) as url:
-            config = reference.synthesizer
-            config.client = RecordingClient.Config(model_name=spec['id'], revision=spec['revision'],
-                                                  url=url, base_timeout=3600, max_retries=1)
-            config.resources = []
-            if 'question_max_tokens' in s:
-                config.max_completion_tokens_a = s['question_max_tokens']
-                config.max_completion_tokens_b = s['answer_max_tokens']
-            synth = config.instantiate()
-            class PreparedResource:
-                async def sample_prompt(self, batch_size):
-                    assert batch_size == len(self.row['seed_prompts'])
-                    return self.row['context'], self.row['seed_prompts']
-            resource = PreparedResource()
-            async def run():
-                await synth.setup()
-                synth.resources = [resource]
-                try:
-                    for i in range(len(paths), len(prompts)):
-                        resource.row = prompts[i]
-                        random.seed(cfg['prompt_seed'] + i)
-                        rows = await synth.sample_convos(i, len(resource.row['seed_prompts']), len(prompts))
-                        for j, row in enumerate(rows):
-                            if row.messages[-1].top_logprobs is None:
-                                raise ValueError('Server did not return logprobs')
-                            row.metadata.update(sample_id=i * reference.batch_size + j,
-                                                prompt_ids=synth.client.answer_prompts[j])
-                        path = directory / f'conversations-{i:05d}.parquet'
-                        temporary = path.with_suffix('.tmp.parquet')
-                        write_conversations(rows, temporary)
-                        temporary.replace(path)
-                        print(json.dumps({'batch': i + 1, 'total': len(prompts)}), flush=True)
-                finally:
-                    await synth.cleanup()
-            asyncio.run(run())
-    paths = conversation_paths(out, generator)
-    return {'generator': generator, 'samples': s['samples'], 'conversation_sha256': files_hash(paths)}
-
-
-def score(cfg, benchmark, profile, out, generator, teacher):
+def score(cfg, benchmark, profile, out, teacher):
     import numpy as np
     import torch
     from transformers import AutoModelForCausalLM
     from cartridges.clients.base import TopLogprobs
     from cartridges.structs import read_conversations, write_conversations
-    sources = conversation_paths(out, generator)
-    if read_json(out / f'G{generator}/synthesize.summary.json')['conversation_sha256'] != files_hash(sources):
+    sources = conversation_paths(out)
+    if read_json(out / 'prepare.summary.json')['conversation_sha256'] != files_hash(sources):
         raise ValueError('Conversation hash mismatch')
     spec = cfg['models'][teacher]
     model = AutoModelForCausalLM.from_pretrained(spec['id'], revision=spec['revision'], torch_dtype=torch.bfloat16,
@@ -345,7 +246,7 @@ def score(cfg, benchmark, profile, out, generator, teacher):
                 logp = model(input_ids=ids, use_cache=False, logits_to_keep=positions).logits[0].float().log_softmax(-1)
                 values, indices = logp.topk(k, dim=-1)
             original = row.messages[-1].top_logprobs
-            if generator == teacher:
+            if teacher == '4B':
                 delta = (logp[torch.as_tensor(original.token_idx, device='cuda'),
                               torch.as_tensor(original.token_id, device='cuda')] -
                          torch.as_tensor(original.logprobs, device='cuda')).abs()
@@ -356,12 +257,14 @@ def score(cfg, benchmark, profile, out, generator, teacher):
             row.messages[-1].top_logprobs = dense.flatten(threshold=threshold)
             masses = np.exp(dense.logprobs).sum(-1)
             mass_sum += float(masses.sum()); tokens += len(answer); below += int((masses < threshold).sum())
-        destination = source.with_name(source.name.replace('conversations-', f'scores-{teacher}-'))
+        destination = out / 'scores' / source.name.replace('conversations-', f'scores-{teacher}-')
+        destination.parent.mkdir(exist_ok=True)
         temporary = destination.with_suffix('.tmp.parquet')
         write_conversations(rows, temporary)
         temporary.replace(destination)
         destinations.append(destination)
-    return {'generator': generator, 'teacher': teacher, 'conversation_sha256': files_hash(sources),
+        print(json.dumps({'teacher': teacher, 'scored_shards': len(destinations), 'total': len(sources)}), flush=True)
+    return {'teacher': teacher, 'conversation_sha256': files_hash(sources),
             'scores_sha256': files_hash(destinations), 'target_tokens': tokens,
             'top20_mass_mean': mass_sum / tokens, 'below_threshold_fraction': below / tokens,
             'same_teacher_logprob_mae': delta_sum / delta_count if delta_count else None,
@@ -372,7 +275,7 @@ def train_config(cfg, benchmark, profile, out, condition, seed):
     from cartridges.datasets import DataSource
     native, _, s = recipe(cfg, benchmark, profile)
     pair = cfg['conditions'][condition]
-    paths = sorted((out / f"G{pair['generator']}").glob(f"scores-{pair['teacher']}-[0-9][0-9][0-9][0-9][0-9].parquet"))
+    paths = sorted((out / 'scores').glob(f"scores-{pair['teacher']}-[0-9][0-9][0-9][0-9][0-9].parquet"))
     native.dataset.data_sources = [DataSource(path=str(p), type='local') for p in paths]
     spec = cfg['models']['4B']
     native.model.pretrained_model_name_or_path = spec['id']
@@ -389,8 +292,6 @@ def train_config(cfg, benchmark, profile, out, condition, seed):
     native.max_optimizer_steps = s['max_steps']
     native.global_batch_size = s.get('global_batch', native.global_batch_size)
     for evaluation in native.generate_evals:
-        if benchmark == 'longhealth' and profile == 'smoke':
-            evaluation.dataset.patient_ids = cfg['benchmarks'][benchmark]['development_patients']
         evaluation.batch_size = s.get('eval_batch_size', evaluation.batch_size)
         if benchmark == 'longhealth':
             evaluation.dataset.max_questions = s['eval_questions']
@@ -408,9 +309,9 @@ def train(cfg, benchmark, profile, out, condition, seed):
     import cartridges.train as module
     config = train_config(cfg, benchmark, profile, out, condition, seed)
     pair = cfg['conditions'][condition]
-    source = out / f"G{pair['generator']}"
+    source = out / 'scores'
     scored = read_json(source / f"score-{pair['teacher']}.summary.json")
-    if scored['conversation_sha256'] != files_hash(conversation_paths(out, pair['generator'])) or scored['scores_sha256'] != files_hash([Path(d.path) for d in config.dataset.data_sources]):
+    if scored['conversation_sha256'] != files_hash(conversation_paths(out)) or scored['scores_sha256'] != files_hash([Path(d.path) for d in config.dataset.data_sources]):
         raise ValueError('Scoring manifest mismatch')
     directory = Path(config.run_dir)
     directory.mkdir(parents=True, exist_ok=True)
@@ -476,14 +377,13 @@ def evaluate(cfg, benchmark, profile, out, condition, seed):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('stage', choices=['prepare', 'synthesize', 'score', 'train', 'evaluate'])
+    parser.add_argument('stage', choices=['prepare', 'score', 'train', 'evaluate'])
     parser.add_argument('--config', default=str(ROOT / 'configs/experiment.json'))
     parser.add_argument('--benchmark', choices=['longhealth', 'mtob'], default='longhealth')
     parser.add_argument('--profile', choices=['smoke', 'pilot', 'main'], default='smoke')
     parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--generator', choices=['4B', '8B'], default='4B')
     parser.add_argument('--teacher', choices=['4B', '8B'], default='4B')
-    parser.add_argument('--condition', choices=['A', 'B', 'C', 'D'], default='A')
+    parser.add_argument('--condition', choices=['A', 'B'], default='A')
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
     cfg = read_json(args.config)
@@ -515,16 +415,14 @@ def main():
     common = cfg, args.benchmark, args.profile, out
     if args.stage == 'prepare':
         result = prepare(*common); summary = out / 'prepare.summary.json'
-    elif args.stage == 'synthesize':
-        result = synthesize(*common, args.generator); summary = out / f'G{args.generator}/synthesize.summary.json'
     elif args.stage == 'score':
-        result = score(*common, args.generator, args.teacher); summary = out / f'G{args.generator}/score-{args.teacher}.summary.json'
+        result = score(*common, args.teacher); summary = out / f'scores/score-{args.teacher}.summary.json'
     else:
         result = (train if args.stage == 'train' else evaluate)(*common, args.condition, args.seed)
         summary = out / f'seed-{args.seed}/{args.stage}-{args.condition}.summary.json'
     result.update(stage=args.stage, seconds=time.perf_counter() - start, command=sys.argv,
                   peak_allocated_bytes=(torch.cuda.max_memory_allocated()
-                      if args.stage != 'synthesize' and torch.cuda.is_available() else None),
+                      if torch.cuda.is_available() else None),
                   code_sha256=resolved['code_sha256'], patch_sha256=resolved['patch_sha256'],
                   lock_sha256=resolved['lock_sha256'], environment_sha256=environment_sha256)
     write_json(summary, result)

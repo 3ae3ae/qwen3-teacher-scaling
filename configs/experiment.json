@@ -1,5 +1,5 @@
 {
-  "protocol_version": "1.0",
+  "protocol_version": "2.0",
   "upstream": {
     "url": "https://github.com/HazyResearch/cartridges.git",
     "revision": "ef34ba97a06049c34820506e2c283746284ae5f0"
@@ -17,19 +17,9 @@
   "student": "4B",
   "conditions": {
     "A": {
-      "generator": "4B",
       "teacher": "4B"
     },
     "B": {
-      "generator": "4B",
-      "teacher": "8B"
-    },
-    "C": {
-      "generator": "8B",
-      "teacher": "4B"
-    },
-    "D": {
-      "generator": "8B",
       "teacher": "8B"
     }
   },
@@ -38,12 +28,6 @@
     123,
     2026
   ],
-  "tokasaurus": {
-    "url": "https://github.com/ScalingIntelligence/tokasaurus.git",
-    "revision": "9ccbb92ed5c042c19b262db3791f4330dc3c87d2",
-    "kv_cache_num_tokens": 32768
-  },
-  "prompt_seed": 82,
   "seed": 42,
   "profiles": {
     "smoke": {
@@ -52,8 +36,6 @@
       "global_batch": 1,
       "max_steps": 2,
       "eval_questions": 2,
-      "question_max_tokens": 64,
-      "answer_max_tokens": 64,
       "eval_batch_size": 1
     },
     "pilot": {
@@ -72,10 +54,6 @@
       "revision": "479922279ce8fa528fe2cd87d854c6a2f8365d21",
       "file": "data/benchmark_v5.json",
       "sha256": "82d34d9da47ab279d7aa89a6bdf298c0ac79f1e506e1dd0a3ea69a1ad5e2cb45",
-      "development_patients": [
-        "patient_11",
-        "patient_12"
-      ],
       "test_patients": [
         "patient_01",
         "patient_02",
@@ -87,13 +65,71 @@
         "patient_08",
         "patient_09",
         "patient_10"
+      ],
+      "conversations": [
+        {
+          "repository": "hazyresearch/m07d11_longhealth_synthesize_qwen3-4b_p10_n65536-0",
+          "revision": "fbc39a62824396134a8ecfd3304279f0ed7631ae",
+          "rows": 65536,
+          "files": [
+            "data/train-00000-of-00007.parquet",
+            "data/train-00001-of-00007.parquet",
+            "data/train-00002-of-00007.parquet",
+            "data/train-00003-of-00007.parquet",
+            "data/train-00004-of-00007.parquet",
+            "data/train-00005-of-00007.parquet",
+            "data/train-00006-of-00007.parquet"
+          ]
+        },
+        {
+          "repository": "hazyresearch/m07d11_longhealth_synthesize_qwen3-4b_p10_n65536-1",
+          "revision": "ab44a11e44d4fadae8a220c9bd52b6295cfcc429",
+          "rows": 65536,
+          "files": [
+            "data/train-00000-of-00007.parquet",
+            "data/train-00001-of-00007.parquet",
+            "data/train-00002-of-00007.parquet",
+            "data/train-00003-of-00007.parquet",
+            "data/train-00004-of-00007.parquet",
+            "data/train-00005-of-00007.parquet",
+            "data/train-00006-of-00007.parquet"
+          ]
+        }
       ]
     },
     "mtob": {
       "repository": "lukemelas/mtob",
       "revision": "0f5c939dc4e7ba7b2092eb115811941b32325667",
       "file": "dataset-encrypted-with-password-kalamang.zip",
-      "sha256": "42db4e4cc5d478206ee01bf447bd3e3fa044b76fb6d83193fc46b05abbeba015"
+      "sha256": "42db4e4cc5d478206ee01bf447bd3e3fa044b76fb6d83193fc46b05abbeba015",
+      "conversations": [
+        {
+          "repository": "hazyresearch/m07d28_mtob_synthesize_qwen3-4b_n65536-0",
+          "revision": "5f126220e1ebed30fadcea4abfe01399dba6568d",
+          "rows": 65536,
+          "files": [
+            "data/train-00000-of-00006.parquet",
+            "data/train-00001-of-00006.parquet",
+            "data/train-00002-of-00006.parquet",
+            "data/train-00003-of-00006.parquet",
+            "data/train-00004-of-00006.parquet",
+            "data/train-00005-of-00006.parquet"
+          ]
+        },
+        {
+          "repository": "hazyresearch/m07d28_mtob_synthesize_qwen3-4b_n65536-1",
+          "revision": "f75756f1233a472584a4333d73f4fa9a1298aa30",
+          "rows": 65536,
+          "files": [
+            "data/train-00000-of-00006.parquet",
+            "data/train-00001-of-00006.parquet",
+            "data/train-00002-of-00006.parquet",
+            "data/train-00003-of-00006.parquet",
+            "data/train-00004-of-00006.parquet",
+            "data/train-00005-of-00006.parquet"
+          ]
+        }
+      ]
     }
   }
 }

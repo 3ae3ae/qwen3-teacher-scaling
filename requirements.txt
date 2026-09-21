@@ -19,15 +19,3 @@ evaluate==0.4.5
 sacrebleu==2.5.1
 setuptools==80.9.0
 wheel==0.45.1
-flashinfer-python==0.2.0.post2; sys_platform == "linux"
-pydra-config>=0.0.13; sys_platform == "linux"
-art; sys_platform == "linux"
-statsd; sys_platform == "linux"
-fastapi; sys_platform == "linux"
-ninja; sys_platform == "linux"
-tabulate; sys_platform == "linux"
-uvicorn; sys_platform == "linux"
-typer; sys_platform == "linux"
-loguru; sys_platform == "linux"
-python-multipart; sys_platform == "linux"
-boto3; sys_platform == "linux"

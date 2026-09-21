@@ -26,7 +26,7 @@
 
 512개 자체 합성 대화와 2 epochs를 사용했다. 공개 pilot 설정의 16-step 상한 안에서 2 epochs가 끝나 실제 update는 10회였다. Epoch당 packed batch는 168개다. 원문 발췌와 seed prompt가 일치하는 기존 생성 결과의 첫 16개 batch를 재사용했으며, 파일 해시를 보존했다.
 
-대화 생성과 학습·채점은 고정한 공개 구현을 사용한다. Soft targets는 모든 비교 조건에 공통인 Hugging Face teacher-forcing 경로로 계산한다. 전체 변경 범위는 [재현 정보](REPRODUCIBILITY.md#변경-범위)에 정리되어 있다.
+대화 생성과 학습·채점은 고정한 공개 구현을 사용한다. Soft targets는 모든 비교 조건에 공통인 Hugging Face teacher-forcing 경로로 계산한다. 전체 변경 범위는 [v0.1.4 재현 정보](https://github.com/3ae3ae/qwen3-teacher-scaling/blob/v0.1.4/docs/REPRODUCIBILITY.md#변경-범위)에 정리되어 있다.
 
 실행 환경은 Colab 2026.07, A100 40GB, Python 3.12.13, PyTorch 2.6.0+cu124, Transformers 4.53.0이다. 학습 프로세스 시간은 초기·최종 평가를 포함해 약 33분 26초였고, 최대 CUDA 할당량은 21.24 GiB였다. 첫·마지막으로 기록된 학습 loss는 각각 0.6993과 0.5824다.
 

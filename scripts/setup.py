@@ -46,9 +46,6 @@ def main():
         subprocess.run([sys.executable, '-m', 'pip', 'install', '--require-hashes', '-r',
                         str(ROOT / 'requirements.lock')], check=True)
     source = checkout('cartridges', cfg['upstream'], args.check_only)
-    server = checkout('tokasaurus', cfg['tokasaurus'], args.check_only)
-    if not args.check_only:
-        subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-deps', '--no-build-isolation', '-e', str(server)], check=True)
     from packaging.requirements import Requirement
     for line in (ROOT / 'requirements.txt').read_text().splitlines():
         if not line.strip() or line.startswith('#'):
@@ -68,7 +65,7 @@ def main():
     import torch
     report = {'python': platform.python_version(), 'platform': platform.platform(), 'torch': torch.__version__,
               'cuda': torch.version.cuda, 'gpu': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
-              'upstream_revision': cfg['upstream']['revision'], 'server_revision': cfg['tokasaurus']['revision'],
+              'upstream_revision': cfg['upstream']['revision'],
               'patch_sha256': experiment.sha(ROOT / 'patches/cartridges.patch'),
               'lock_sha256': experiment.sha(ROOT / 'requirements.lock'),
               'packages': {d.metadata['Name']: d.version for d in importlib.metadata.distributions()}}
