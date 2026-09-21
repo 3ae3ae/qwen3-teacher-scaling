@@ -129,17 +129,28 @@ def main():
     cells = {''.join(c['source']).splitlines()[0]: ''.join(c['source'])
              for c in notebook['cells'] if c['cell_type'] == 'code'}
     for mode in ['train', 'evaluate']:
-        calls = []
-        def fake_stage(stage, **kwargs):
-            calls.append(stage)
-            return {'evaluations': [{'accuracy': 0.5}], 'accuracy': 0.5}
-        scope = {'MODE': mode, 'TRAIN_SEEDS': [42], 'run_stage': fake_stage, 'display': lambda _: None}
-        for title in titles:
-            exec(compile(cells[title], 'notebook-routing', 'exec'), scope)
-        expected = (['prepare'] + ['synthesize', 'score', 'score'] * 2 + ['train'] * 4
-                    if mode == 'train' else ['evaluate'] * 4)
-        assert calls == expected, (mode, calls)
-        assert len(scope['rows']) == 4
+        for selected in [['A'], ['B'], ['C'], ['D'], list('ABCD')]:
+            calls = []
+            def fake_stage(stage, **kwargs):
+                calls.append((stage, kwargs))
+                return {}
+            scope = {'MODE': mode, 'CONDITIONS': selected, 'BASE': cfg, 'TRAIN_SEEDS': [42, 123],
+                     'run_stage': fake_stage, 'display': lambda _: None}
+            for title in titles:
+                exec(compile(cells[title], 'notebook-routing', 'exec'), scope)
+            expected = []
+            if mode == 'train':
+                expected.append(('prepare', {}))
+                for generator, group in [('4B', 'AB'), ('8B', 'CD')]:
+                    if any(c in selected for c in group):
+                        expected.append(('synthesize', {'generator': generator}))
+                        for c in group:
+                            if c in selected:
+                                expected.append(('score', {'generator': generator,
+                                    'teacher': '4B' if c in 'AC' else '8B'}))
+            expected.extend((mode, {'condition': c, 'seed': seed})
+                            for seed in [42, 123] for c in selected)
+            assert calls == expected, (mode, selected, calls)
     checks.append('notebook_train_evaluate_routing')
     report = {'status':'passed','device':'cpu','model_weights_loaded':False,'checks':checks,
               'protocol_version':cfg['protocol_version'],'code_sha256':ex.sha(ROOT/'experiment.py'),
