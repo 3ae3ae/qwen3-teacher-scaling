@@ -1,0 +1,13 @@
+Qwen3 Teacher Scaling for Cartridges
+
+This project uses HazyResearch/cartridges (Apache-2.0):
+https://github.com/HazyResearch/cartridges
+Revision: ef34ba97a06049c34820506e2c283746284ae5f0
+Original license notice: Copyright 2021 The Meerkat Team.
+Modifications to the upstream files are distributed in patches/cartridges.patch
+and described in docs/REPRODUCIBILITY.md.
+
+The synthesis server is ScalingIntelligence/tokasaurus (Apache-2.0):
+https://github.com/ScalingIntelligence/tokasaurus
+Revision: 9ccbb92ed5c042c19b262db3791f4330dc3c87d2
+Its source is fetched unchanged during setup.

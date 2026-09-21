@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+external/
+data/
+artifacts/
+*.tar.gz
+*.zip
+.env
+*.pt
+*.safetensors
+wandb/
+
+
+runs/
+results/
