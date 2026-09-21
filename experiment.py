@@ -21,6 +21,7 @@ UPSTREAM = ROOT / 'external/cartridges'
 os.environ['CARTRIDGES_DIR'] = str(UPSTREAM)
 os.environ['CARTRIDGES_OUTPUT_DIR'] = str(ROOT / 'artifacts')
 os.environ['MPLBACKEND'] = 'Agg'
+os.environ['PATH'] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get('PATH', '')
 sys.path.insert(0, str(UPSTREAM))
 
 
