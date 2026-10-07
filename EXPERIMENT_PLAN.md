@@ -10,7 +10,7 @@
 | B | 학습한 카트리지 | Qwen3-8B | Qwen3-4B |
 | ICL | 전체 환자 기록을 프롬프트에 삽입 | — | Qwen3-4B |
 
-A·B는 동일한 문맥·질문·답변 토큰과 초기 cache를 사용한다. Teacher별 soft targets는 같은 Hugging Face teacher-forcing 경로에서 계산한다. 학습 seed는 42·123·2026이다.
+A·B는 동일한 문맥·질문·답변 토큰과 초기 cache를 사용한다. Teacher별 soft targets는 같은 Hugging Face teacher-forcing 경로에서 계산한다. 기본 pilot은 seed 42를 사용한다. Main의 3-seed 비교는 42·123·2026이다.
 
 ICL은 LongHealth에 적용한다. MTOB는 A·B를 비교한다.
 
@@ -48,12 +48,16 @@ LongHealth는 원본 `<answer>` 추출과 선택지 매칭 규칙을 사용한�
 | Profile | 대화 선택 | 학습 | 평가 |
 |---|---|---|---|
 | smoke | 첫 32개 | 64-token cache, batch 1, 최대 2 steps | 2문항, batch 1 |
-| pilot | 첫 512개 | 원본 cache·batch, 최대 16 steps | 전체 |
+| pilot | 첫 32,768개 | 공개 예제의 epoch·cache·batch | 전체 |
 | main | 전체 131,072개 | 공개 예제의 epoch | 전체 |
 
 대화 선택 순서는 설정의 저장소 순서 → 파일 순서 → 파일 내 행 순서다. Smoke·pilot은 이 순서의 앞부분을 사용하는 축소 실행이다. 학습 시 공개 구현의 seed 기반 shuffle·packing을 적용한다. Main 전체 비교는 2조건 × 2 benchmarks × 3 seeds, 총 12회 학습이다.
 
 ICL은 모든 profile에서 전체 환자 기록을 사용하며, smoke는 2문항·pilot과 main은 200문항을 평가한다. Main에는 seed별 ICL 평가 3회를 추가한다.
+
+기본 pilot은 LongHealth A·B·ICL을 seed 42 하나로 비교한다. A·B는 32,768개 대화로 2 epochs를 학습하며 128 optimizer updates마다 평가한다. 실제 update 수는 대화 길이와 packing 결과에서 결정된다.
+
+A100 기준 전체 pilot의 계획용 시간은 약 15–22시간이다. 시간당 12–15컴퓨팅 단위를 가정하면 약 180–330단위로 추정한다. 예산은 400단위다. 기존 A pilot 실측을 확대한 추정이며, 공개 대화 전체 처리와 ICL 시간은 실측 전이다.
 
 ## 분석
 

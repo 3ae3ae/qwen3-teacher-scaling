@@ -1,5 +1,5 @@
 {
-  "protocol_version": "2.1",
+  "protocol_version": "2.2",
   "upstream": {
     "url": "https://github.com/HazyResearch/cartridges.git",
     "revision": "ef34ba97a06049c34820506e2c283746284ae5f0"
@@ -52,8 +52,8 @@
       "eval_batch_size": 1
     },
     "pilot": {
-      "samples": 512,
-      "max_steps": 16,
+      "samples": 32768,
+      "max_steps": -1,
       "eval_questions": null
     },
     "main": {

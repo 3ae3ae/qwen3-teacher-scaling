@@ -1,6 +1,6 @@
 # Qwen3 Teacher Scaling for Cartridges
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.3.0/notebooks/qwen3_teacher_scaling.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.4.0/notebooks/qwen3_teacher_scaling.ipynb)
 
 공개 Cartridges Qwen3-4B 대화를 사용해 scoring teacher 크기를 비교한다. Student는 Qwen3-4B, teacher는 A: Qwen3-4B와 B: Qwen3-8B다. LongHealth에서는 전체 환자 기록을 프롬프트에 넣는 ICL 기준선도 비교한다. 학습·평가는 공개 LongHealth·MTOB 예제를 따른다.
 
@@ -14,7 +14,9 @@
 2. 런타임 버전 `2026.07`(Python 3.12)과 BF16 GPU를 선택한다.
 3. `CONDITION=A/B/ICL/all`, `BENCHMARK`, `PROFILE`을 선택하고 셀을 순서대로 실행한다.
 
-A·B는 공개 데이터 다운로드 → teacher 재채점 → 카트리지 학습·평가를 수행한다. 기본 `smoke`는 32대화·최대 2 steps, `pilot`은 512대화·최대 16 steps, `main`은 전체 131,072대화와 seed 42·123·2026을 사용한다.
+A·B는 공개 데이터 다운로드 → teacher 재채점 → 카트리지 학습·평가를 수행한다. 기본 설정은 `all`·LongHealth·`pilot`·seed 42다. Pilot은 공개 대화 32,768개로 2 epochs를 학습하고, A·B·ICL 모두 200문항을 평가한다.
+
+`smoke`는 32대화·최대 2 steps, `main`은 전체 131,072대화를 사용한다. 학습 epoch·batch·optimizer·평가 주기는 공개 예제를 따른다. `SEEDS`를 비우면 main은 42·123·2026, smoke·pilot은 42를 사용한다.
 
 `ICL`은 LongHealth 전체 기록을 준비해 Qwen3-4B로 평가한다. `smoke`는 2문항, `pilot`·`main`은 200문항이다. Qwen의 공식 YaRN 설정으로 문맥을 확장하며 A100 40GB 이상의 메모리를 권장한다. `all`은 LongHealth A·B·ICL, MTOB A·B를 실행한다.
 
