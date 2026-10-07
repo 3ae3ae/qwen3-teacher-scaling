@@ -62,6 +62,8 @@ def main():
     import experiment
     for benchmark in cfg['benchmarks']:
         experiment.reference_configs(benchmark)
+    for benchmark in cfg['icl']['benchmarks']:
+        experiment.icl_config(cfg, benchmark, 'main')
     import torch
     report = {'python': platform.python_version(), 'platform': platform.platform(), 'torch': torch.__version__,
               'cuda': torch.version.cuda, 'gpu': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,

@@ -67,3 +67,17 @@ index 648334e..f673e12 100644
              batch: DatasetBatch
              do_step = (iter_idx + 1) % accumulate_grad_steps == 0
  
+diff --git a/examples/benchmarks/longhealth/baseline_longhealth.py b/examples/benchmarks/longhealth/baseline_longhealth.py
+index 76312ce..25dd54f 100644
+--- a/examples/benchmarks/longhealth/baseline_longhealth.py
++++ b/examples/benchmarks/longhealth/baseline_longhealth.py
+@@ -3,7 +3,7 @@ from pathlib import Path
+ 
+ import pydrantic
+ 
+-from cartridges.clients.openai import CartridgeConfig, OpenAIClient
++from cartridges.clients.openai import OpenAIClient
+ from cartridges.data.longhealth.resources import LongHealthResource
+ from cartridges.evaluate import ICLBaseline, GenerationEvalRunConfig
+ from cartridges.data.longhealth.evals import LongHealthMultipleChoiceGenerateDataset
+ 

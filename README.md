@@ -1,6 +1,6 @@
 # Qwen3 Teacher Scaling for Cartridges
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.4.2/notebooks/qwen3_teacher_scaling.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.4.3/notebooks/qwen3_teacher_scaling.ipynb)
 
 공개 Cartridges Qwen3-4B 대화를 사용해 scoring teacher 크기를 비교한다. Student는 Qwen3-4B, teacher는 A: Qwen3-4B와 B: Qwen3-8B다. LongHealth에서는 전체 환자 기록을 프롬프트에 넣는 ICL 기준선도 비교한다. 학습·평가는 공개 LongHealth·MTOB 예제를 따른다.
 

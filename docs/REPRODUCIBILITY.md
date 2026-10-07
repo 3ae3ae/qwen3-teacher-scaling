@@ -36,7 +36,7 @@ ICL은 공개 `baseline_longhealth.py`의 resource·system prompt와 `ICLBaselin
 
 ICL 문맥 한도는 131,072 tokens, YaRN은 `factor=4.0`, `original_max_position_embeddings=32768`이다. 전체 기록을 system prompt에 넣고, 1,024-token 청크 prefill과 일반 KV cache를 사용한다. 매 문항 뒤 cache를 공통 system prompt 길이로 되돌린다. 입력을 자르는 처리는 없으며 한도 초과는 오류로 기록한다.
 
-[패치](../patches/cartridges.patch)는 tokenizer·metric revision 고정, Qwen 모델명 대소문자 호환, cache 복원 시 token 축 수정, step 상한 적용을 포함한다. Smoke는 최대 2 steps를 사용하고, pilot·main은 공개 예제의 epoch를 완료한다. 손실 함수, sparse 확률 처리, packing과 평가 채점은 공개 구현을 따른다.
+[패치](../patches/cartridges.patch)는 tokenizer·metric revision 고정, Qwen 모델명 대소문자 호환, cache 복원 시 token 축 수정, step 상한 적용, LongHealth ICL 예제의 사용하지 않는 잘못된 import 제거를 포함한다. Smoke는 최대 2 steps를 사용하고, pilot·main은 공개 예제의 epoch를 완료한다. 손실 함수, sparse 확률 처리, packing과 평가 채점은 공개 구현을 따른다.
 
 ## 실행 산출물
 
