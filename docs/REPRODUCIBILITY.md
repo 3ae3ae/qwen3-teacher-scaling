@@ -49,6 +49,8 @@ ICL 문맥 한도는 131,072 tokens, YaRN은 `factor=4.0`, `original_max_positio
 
 같은 `RUN_NAME`·benchmark·profile에서 완료된 단계를 재사용한다. `MODE=evaluate`는 A·B의 최종 checkpoint와 저장된 RNG로 재평가한다. ICL은 같은 원문과 seed로 다시 평가한다. 수치 비교에는 같은 release·입력·seed·GPU·환경을 사용하며, GPU 연산에 따른 수치 변동이 생길 수 있다.
 
+마지막 셀은 전체 결과를 Drive에 복사하고 `drive.flush_and_unmount()`로 동기화한 후 `runtime.unassign()`을 호출한다. 자동 삭제는 모든 선택 조건의 실행과 결과 저장이 완료되고 Drive 백업을 사용할 때 수행한다.
+
 ## 데이터 출처와 라이선스
 
 | 자료 | 배포처 표기 |

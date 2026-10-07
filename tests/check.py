@@ -69,6 +69,52 @@ def check_notebook(cfg):
                 expected.extend((mode, {'condition': c, 'seed': seed}) for c in cartridge)
             assert calls == expected, (mode, selected, calls)
     checks.append('notebook_train_evaluate_routing')
+    # Runtime deletion follows successful execution, backup and Drive synchronization.
+    shutdown = cells['# @title 결과 보존 후 런타임 삭제']
+    events = []
+    colab = SimpleNamespace(drive=SimpleNamespace(flush_and_unmount=lambda: events.append('flush')),
+                            runtime=SimpleNamespace(unassign=lambda: events.append('unassign')))
+    scope = {'AUTO_DELETE_RUNTIME':True, 'RUN_COMPLETED':True, 'RESULTS_SAVED':True,
+             'RUN':'run', 'BACKUP':'drive',
+             'os':SimpleNamespace(path=SimpleNamespace(ismount=lambda _:True)),
+             'shutil':SimpleNamespace(copytree=lambda *a, **k: events.append('backup'))}
+    with patch.dict(sys.modules, {'google':SimpleNamespace(colab=colab), 'google.colab':colab}):
+        with contextlib.redirect_stdout(io.StringIO()):
+            exec(shutdown, scope)
+        assert events == ['backup','flush','unassign']
+        for override in [{'RUN_COMPLETED':False}, {'RESULTS_SAVED':False}, {'BACKUP':None},
+                         {'os':SimpleNamespace(path=SimpleNamespace(ismount=lambda _:False))}]:
+            events.clear()
+            try:
+                exec(shutdown, {**scope, **override})
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('Runtime deletion bypassed the result-preservation guard')
+            assert events == []
+        events.clear()
+        exec(shutdown, {**scope, 'AUTO_DELETE_RUNTIME':False})
+        assert events == []
+        def failed_backup(*a, **k):
+            raise OSError('Backup failed')
+        try:
+            exec(shutdown, {**scope, 'shutil':SimpleNamespace(copytree=failed_backup)})
+        except OSError:
+            pass
+        else:
+            raise AssertionError('Backup failure was ignored')
+        assert events == []
+        def failed_flush():
+            raise RuntimeError('Drive synchronization failed')
+        with patch.object(colab.drive, 'flush_and_unmount', failed_flush):
+            try:
+                exec(shutdown, scope)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('Drive synchronization failure was ignored')
+        assert events == ['backup']
+    checks.append('runtime_deletion_after_successful_drive_sync')
     # Validate full-context assembly and overflow handling with stdlib only.
     tree = ast.parse((ROOT/'experiment.py').read_text())
     function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'icl_prompt_ids')
