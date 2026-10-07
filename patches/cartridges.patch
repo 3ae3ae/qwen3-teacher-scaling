@@ -80,4 +80,3 @@ index 76312ce..25dd54f 100644
  from cartridges.data.longhealth.resources import LongHealthResource
  from cartridges.evaluate import ICLBaseline, GenerationEvalRunConfig
  from cartridges.data.longhealth.evals import LongHealthMultipleChoiceGenerateDataset
- 
