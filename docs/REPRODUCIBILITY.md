@@ -51,6 +51,8 @@ ICL 문맥 한도는 131,072 tokens, YaRN은 `factor=4.0`, `original_max_positio
 
 마지막 셀은 전체 결과를 Drive에 복사하고 `drive.flush_and_unmount()`로 동기화한 후 `runtime.unassign()`을 호출한다. 자동 삭제는 모든 선택 조건의 실행과 결과 저장이 완료되고 Drive 백업을 사용할 때 수행한다.
 
+Drive 연결 셀은 설치보다 앞에 있다. 연결을 승인한 런타임에서 전체 노트북을 실행하면 기존 mount를 사용한다. 새 런타임에서는 Drive 연결 셀을 다시 실행한다.
+
 ## 데이터 출처와 라이선스
 
 | 자료 | 배포처 표기 |

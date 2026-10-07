@@ -29,6 +29,9 @@ def check_notebook(cfg):
     titles = ['# @title 데이터 준비', '# @title Teacher 재채점', '# @title 학습 또는 재평가']
     cells = {''.join(c['source']).splitlines()[0]: ''.join(c['source'])
              for c in notebook['cells'] if c['cell_type'] == 'code'}
+    code_titles = list(cells)
+    assert code_titles.index('# @title Google Drive 연결') < code_titles.index('# @title 실험 소스 준비')
+    assert 'drive.mount' not in cells['# @title 실행 폴더 준비']
     selection = cells['# @title 실행 폴더 준비'].split('TRAIN_SEEDS =')[0]
     for benchmark in ['longhealth', 'mtob']:
         for condition in ['A', 'B', 'ICL', 'all']:
@@ -74,11 +77,16 @@ def check_notebook(cfg):
     events = []
     colab = SimpleNamespace(drive=SimpleNamespace(flush_and_unmount=lambda: events.append('flush')),
                             runtime=SimpleNamespace(unassign=lambda: events.append('unassign')))
+    colab.drive.mount = lambda path: events.append(('mount', path))
     scope = {'AUTO_DELETE_RUNTIME':True, 'RUN_COMPLETED':True, 'RESULTS_SAVED':True,
              'RUN':'run', 'BACKUP':'drive',
              'os':SimpleNamespace(path=SimpleNamespace(ismount=lambda _:True)),
              'shutil':SimpleNamespace(copytree=lambda *a, **k: events.append('backup'))}
     with patch.dict(sys.modules, {'google':SimpleNamespace(colab=colab), 'google.colab':colab}):
+        exec(cells['# @title Google Drive 연결'], {'USE_DRIVE':True})
+        exec(cells['# @title Google Drive 연결'], {'USE_DRIVE':False})
+        assert events == [('mount', '/content/drive')]
+        events.clear()
         with contextlib.redirect_stdout(io.StringIO()):
             exec(shutdown, scope)
         assert events == ['backup','flush','unassign']
@@ -115,6 +123,7 @@ def check_notebook(cfg):
                 raise AssertionError('Drive synchronization failure was ignored')
         assert events == ['backup']
     checks.append('runtime_deletion_after_successful_drive_sync')
+    checks.append('drive_connection_before_environment_setup')
     # Validate full-context assembly and overflow handling with stdlib only.
     tree = ast.parse((ROOT/'experiment.py').read_text())
     function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'icl_prompt_ids')

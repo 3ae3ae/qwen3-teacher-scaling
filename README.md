@@ -1,6 +1,6 @@
 # Qwen3 Teacher Scaling for Cartridges
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.4.1/notebooks/qwen3_teacher_scaling.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/3ae3ae/qwen3-teacher-scaling/blob/v0.4.2/notebooks/qwen3_teacher_scaling.ipynb)
 
 공개 Cartridges Qwen3-4B 대화를 사용해 scoring teacher 크기를 비교한다. Student는 Qwen3-4B, teacher는 A: Qwen3-4B와 B: Qwen3-8B다. LongHealth에서는 전체 환자 기록을 프롬프트에 넣는 ICL 기준선도 비교한다. 학습·평가는 공개 LongHealth·MTOB 예제를 따른다.
 
@@ -12,7 +12,9 @@
 
 1. **Open in Colab**으로 노트북을 연다.
 2. 런타임 버전 `2026.07`(Python 3.12)과 BF16 GPU를 선택한다.
-3. `CONDITION=A/B/ICL/all`, `BENCHMARK`, `PROFILE`을 선택하고 셀을 순서대로 실행한다.
+3. 실행 설정을 선택하고 첫 코드 셀을 실행한다.
+4. **Google Drive 연결** 셀을 실행하여 연결을 승인한다.
+5. **모두 실행**을 눌러 설치·검사·실험을 진행한다. 같은 런타임의 Drive 연결을 재사용한다.
 
 A·B는 공개 데이터 다운로드 → teacher 재채점 → 카트리지 학습·평가를 수행한다. 기본 설정은 `all`·LongHealth·`pilot`·seed 42다. Pilot은 공개 대화 32,768개로 2 epochs를 학습하고, A·B·ICL 모두 200문항을 평가한다.
 
