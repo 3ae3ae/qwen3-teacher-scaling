@@ -28,8 +28,13 @@ Colab 2026.07의 Python 3.12, 기본 OS와 CUDA 드라이버를 사용한다. �
 | 공개 대화·모델 revision과 파일 해시 고정 | 학습 입력의 식별과 재사용 |
 | 초기 cache 공유 | A·B 초기값 통제 |
 | Colab 폴더에 config·prediction·metric·checkpoint 저장 | 실행 결과 보존 |
+| LongHealth 전체 기록의 ICL 평가 | 자료를 프롬프트로 제공한 기준선 비교 |
 
 재채점 prompt는 공개 system prompt·질문과 고정 chat template으로 구성한다. Thinking 설정은 답변 첫 `<think>` 토큰으로 추정하며, 모호한 토큰 배열은 오류로 처리한다. 공개 logprob와 A 재채점 결과의 차이에는 입력 복원과 모델·연산 구현 차이가 반영될 수 있다.
+
+ICL은 공개 `baseline_longhealth.py`의 resource·system prompt와 `ICLBaseline`·`_process_batch`를 사용한다. 모델·tokenizer는 Qwen3-4B의 고정 revision을 사용하고, thinking·temperature·출력 상한은 A·B의 평가 config와 맞춘다. 원본 ICL 예제의 2,048-token 출력 상한은 비교 조건의 512 tokens로 맞춘다. 모델 서버 대신 HF SDPA 추론을 사용하며 문항을 하나씩 처리한다.
+
+ICL 문맥 한도는 131,072 tokens, YaRN은 `factor=4.0`, `original_max_position_embeddings=32768`이다. 전체 기록을 system prompt에 넣고, 1,024-token 청크 prefill과 일반 KV cache를 사용한다. 매 문항 뒤 cache를 공통 system prompt 길이로 되돌린다. 입력을 자르는 처리는 없으며 한도 초과는 오류로 기록한다.
 
 [패치](../patches/cartridges.patch)는 tokenizer·metric revision 고정, Qwen 모델명 대소문자 호환, cache 복원 시 token 축 수정, smoke·pilot의 step 상한 적용을 포함한다. 손실 함수, sparse 확률 처리, packing과 평가 채점은 공개 구현을 따른다.
 
@@ -39,8 +44,10 @@ Colab 2026.07의 Python 3.12, 기본 OS와 CUDA 드라이버를 사용한다. �
 - `prepare.summary.json`, `data/`: 공개 데이터 출처·해시와 선택한 대화
 - `scores/`: teacher별 soft targets와 재채점 지표
 - `initial-cache.pt`, `seed-*/`: 초기 cache, 조건별 checkpoint·prediction·metric·평가 RNG
+- `prepare-icl.summary.json`, `icl-config.json`, `data/icl-*.txt`: ICL 전체 자료·system prompt·설정·입력 길이·해시
+- `seed-*/ICL/`, `seed-*/icl.summary.json`: ICL prediction·지표·평가 RNG·시간·메모리
 
-같은 `RUN_NAME`·benchmark·profile에서 완료된 단계를 재사용한다. `MODE=evaluate`는 최종 checkpoint와 저장된 RNG로 재평가한다. 수치 비교에는 같은 release·입력·seed·GPU·환경을 사용하며, GPU 연산에 따른 수치 변동이 생길 수 있다.
+같은 `RUN_NAME`·benchmark·profile에서 완료된 단계를 재사용한다. `MODE=evaluate`는 A·B의 최종 checkpoint와 저장된 RNG로 재평가한다. ICL은 같은 원문과 seed로 다시 평가한다. 수치 비교에는 같은 release·입력·seed·GPU·환경을 사용하며, GPU 연산에 따른 수치 변동이 생길 수 있다.
 
 ## 데이터 출처와 라이선스
 
@@ -54,6 +61,6 @@ Colab 2026.07의 Python 3.12, 기본 OS와 CUDA 드라이버를 사용한다. �
 
 ## 검증
 
-설치 셀의 검사는 공개 학습 설정 일치, tokenizer, parquet 선택·토큰 보존·prompt 구성, sparse 처리, cache 복원과 A·B 실행 경로를 확인한다. 공개 데이터 버전의 GPU 학습·평가는 검증 대기 상태다.
+설치 셀의 검사는 공개 학습 설정 일치, tokenizer, parquet 선택·토큰 보존·prompt 구성, sparse 처리, cache 복원과 실행 경로를 확인한다. ICL에는 원본 평가 설정 일치와 작은 임의 모델의 prefill·문항 사이 cache 분리 검사를 포함한다. 구문·실행 경로·ICL 입력 한도 검사는 통과했으며, Colab 설치 후 검사와 실제 GPU 학습·평가는 검증 대기 상태다.
 
 [v0.1.4 pilot 결과](A_PILOT_RESULT.md)는 자체 생성 대화 512개를 사용한 이전 프로토콜의 기록이다.

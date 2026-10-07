@@ -1,5 +1,5 @@
 {
-  "protocol_version": "2.0",
+  "protocol_version": "2.1",
   "upstream": {
     "url": "https://github.com/HazyResearch/cartridges.git",
     "revision": "ef34ba97a06049c34820506e2c283746284ae5f0"
@@ -21,6 +21,19 @@
     },
     "B": {
       "teacher": "8B"
+    },
+    "ICL": {
+      "input": "prompt"
+    }
+  },
+  "icl": {
+    "benchmarks": ["longhealth"],
+    "max_context_tokens": 131072,
+    "prefill_chunk_tokens": 1024,
+    "rope_scaling": {
+      "rope_type": "yarn",
+      "factor": 4.0,
+      "original_max_position_embeddings": 32768
     }
   },
   "seeds_for_main": [

@@ -1,5 +1,7 @@
 """CPU checks against the pinned benchmark recipes; no model weights are loaded."""
 import argparse
+import ast
+import asyncio
 import contextlib
 import io
 import json
@@ -16,7 +18,8 @@ def check_notebook(cfg):
     checks = []
     for path in [ROOT/'experiment.py', ROOT/'scripts/setup.py', Path(__file__)]:
         compile(path.read_text(), str(path), 'exec')
-    assert cfg['conditions'] == {'A': {'teacher': '4B'}, 'B': {'teacher': '8B'}}
+    assert cfg['conditions'] == {'A': {'teacher': '4B'}, 'B': {'teacher': '8B'}, 'ICL': {'input': 'prompt'}}
+    assert cfg['icl']['benchmarks'] == ['longhealth']
     notebook = json.loads((ROOT/'notebooks/qwen3_teacher_scaling.ipynb').read_text())
     for cell in notebook['cells']:
         if cell['cell_type']=='code':
@@ -26,25 +29,79 @@ def check_notebook(cfg):
     titles = ['# @title 데이터 준비', '# @title Teacher 재채점', '# @title 학습 또는 재평가']
     cells = {''.join(c['source']).splitlines()[0]: ''.join(c['source'])
              for c in notebook['cells'] if c['cell_type'] == 'code'}
+    selection = cells['# @title 실행 폴더 준비'].split('TRAIN_SEEDS =')[0]
+    for benchmark in ['longhealth', 'mtob']:
+        for condition in ['A', 'B', 'ICL', 'all']:
+            scope = {'BASE': cfg, 'BENCHMARK': benchmark, 'CONDITION': condition,
+                     'json': json, 'ROOT': ROOT}
+            if benchmark == 'mtob' and condition == 'ICL':
+                try:
+                    exec(selection, scope)
+                except ValueError:
+                    continue
+                raise AssertionError('Notebook enabled MTOB ICL')
+            exec(selection, scope)
+            expected = (['A','B','ICL'] if benchmark == 'longhealth' else ['A','B']) if condition == 'all' else [condition]
+            assert scope['CONDITIONS'] == expected
+    checks.append('benchmark_condition_selection')
     for mode in ['train', 'evaluate']:
-        for selected in [['A'], ['B'], ['A', 'B']]:
+        for selected in [['A'], ['B'], ['ICL'], ['A', 'B'], ['A', 'B', 'ICL']]:
             calls = []
             def fake_stage(stage, **kwargs):
                 calls.append((stage, kwargs))
                 return {}
             scope = {'MODE': mode, 'CONDITIONS': selected, 'BASE': cfg, 'TRAIN_SEEDS': [42, 123],
+                     'CARTRIDGE_CONDITIONS': [c for c in selected if c != 'ICL'],
                      'run_stage': fake_stage, 'display': lambda _: None}
             for title in titles:
                 exec(compile(cells[title], 'notebook-routing', 'exec'), scope)
             expected = []
-            if mode == 'train':
+            cartridge = [c for c in selected if c != 'ICL']
+            if mode == 'train' and cartridge:
                 expected.append(('prepare', {}))
-                expected.extend(('score', {'teacher': cfg['conditions'][c]['teacher']}) for c in selected)
-            expected.extend((mode, {'condition': c, 'seed': seed})
-                            for seed in [42, 123] for c in selected)
+            if 'ICL' in selected:
+                expected.append(('prepare-icl', {}))
+            if mode == 'train':
+                expected.extend(('score', {'teacher': cfg['conditions'][c]['teacher']}) for c in cartridge)
+            for seed in [42, 123]:
+                if 'ICL' in selected:
+                    expected.append(('icl', {'seed': seed}))
+                expected.extend((mode, {'condition': c, 'seed': seed}) for c in cartridge)
             assert calls == expected, (mode, selected, calls)
     checks.append('notebook_train_evaluate_routing')
+    # Validate full-context assembly and overflow handling with stdlib only.
+    tree = ast.parse((ROOT/'experiment.py').read_text())
+    function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'icl_prompt_ids')
+    scope = {}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), 'icl_prompt_ids', 'exec'), scope)
+    ids = scope['icl_prompt_ids'](ToyTokenizer(), 'records', 'question', True, 3, 100)
+    assert ids == ToyTokenizer().apply_chat_template(
+        [{'role':'system','content':'records'}, {'role':'user','content':'question'}],
+        add_generation_prompt=True, enable_thinking=True)
+    try:
+        scope['icl_prompt_ids'](ToyTokenizer(), 'records', 'question', True, 3, len(ids) + 2)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('ICL silently accepted an overflowing full prompt')
+    checks.append('icl_full_prompt_and_context_limit')
     return checks
+
+
+class ToyTokenizer:
+    eos_token_id, pad_token_id = 31, 0
+
+    def apply_chat_template(self, messages, add_generation_prompt=False, enable_thinking=False):
+        ids = [1]
+        for message in messages:
+            ids.extend([2 if message['role'] == 'system' else 3,
+                        *[4 + ord(c) % 20 for c in message['content']], 25])
+        if add_generation_prompt:
+            ids.extend([26, 27 if enable_thinking else 28])
+        return ids
+
+    def decode(self, ids, skip_special_tokens=True):
+        return ','.join(map(str, ids))
 
 
 def main():
@@ -79,6 +136,8 @@ def main():
             assert settings['samples'] == 131072
             assert synth.batch_size == 32
             for condition, pair in cfg['conditions'].items():
+                if condition == 'ICL':
+                    continue
                 directory = out / 'scores'
                 directory.mkdir(exist_ok=True)
                 (directory / f"scores-{pair['teacher']}-00000.parquet").touch()
@@ -95,6 +154,39 @@ def main():
                 assert Path(actual.dataset.data_sources[0].path).name == f"scores-{pair['teacher']}-00000.parquet"
                 actual.to_yaml(str(out/'native.yaml'))
         checks.append('main_recipes_match_published_training_and_evaluation_settings')
+        generator, evaluation = ex.icl_config(cfg, 'longhealth', 'main')
+        native = ex.evaluation_config(cfg, 'longhealth', 'main')
+        assert evaluation.model_dump() == native.model_dump()
+        assert generator.context.patient_ids == native.dataset.patient_ids
+        assert generator.temperature == .3 and generator.max_completion_tokens == 512
+        assert generator.enable_thinking is True and generator.max_context_tokens is None
+        assert generator.system_prompt_template == ex.importlib.import_module(
+            'examples.benchmarks.longhealth.baseline_longhealth').SYSTEM_PROMPT_TEMPLATE
+        try:
+            ex.icl_config(cfg, 'mtob', 'main')
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('MTOB ICL was enabled')
+        # A tiny random HF model checks chunked prefill and cross-question cache isolation.
+        from transformers import Qwen3Config, Qwen3ForCausalLM
+        torch.manual_seed(42)
+        small = Qwen3ForCausalLM(Qwen3Config(vocab_size=32, hidden_size=32, intermediate_size=64,
+            num_hidden_layers=2, num_attention_heads=4, num_key_value_heads=2, head_dim=8,
+            eos_token_id=31, pad_token_id=0, _attn_implementation='sdpa')).eval()
+        toy = ToyTokenizer()
+        with contextlib.redirect_stdout(io.StringIO()):
+            client = ex.PromptClient(small, toy, 'records', {'prefill_chunk_tokens':3, 'max_context_tokens':100})
+        for question in ['one', 'two', 'one']:
+            chat = [{'role':'system','content':'records'}, {'role':'user','content':question}]
+            ids = ex.icl_prompt_ids(toy, 'records', question, False, 3, 100)
+            with torch.inference_mode():
+                fresh = small.generate(input_ids=torch.tensor([ids]), attention_mask=torch.ones(1,len(ids),dtype=torch.long),
+                    max_new_tokens=3, do_sample=False, logits_to_keep=1, eos_token_id=31, pad_token_id=0)
+            response = asyncio.run(client.chat([chat], max_completion_tokens=3, temperature=0., enable_thinking=False))
+            assert response.samples[0].token_ids == fresh[0,len(ids):].tolist()
+            assert client.cache.get_seq_length() == len(client.prefix)
+        checks.append('native_icl_config_and_prefill_cache_isolation')
         answer = tokenizer.encode('Answer.<|im_end|>', add_special_tokens=False)
         logp = np.log(np.tile([.8,.1995], (len(answer),1))).astype(np.float32)
         flat = TopLogprobs(logp,np.tile([20,21],(len(answer),1))).flatten()

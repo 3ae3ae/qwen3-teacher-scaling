@@ -1,5 +1,6 @@
 """Teacher-size comparison using pinned Cartridges benchmark recipes."""
 import argparse
+import asyncio
 import hashlib
 import importlib
 import json
@@ -107,8 +108,7 @@ def download(url, path, expected):
         raise ValueError('Dataset hash mismatch')
 
 
-def prepare(cfg, benchmark, profile, out):
-    _, _, s = recipe(cfg, benchmark, profile)
+def prepare_evaluation(cfg, benchmark, out):
     data = out / 'data'
     data.mkdir(parents=True, exist_ok=True)
     ds = cfg['benchmarks'][benchmark]
@@ -124,14 +124,23 @@ def prepare(cfg, benchmark, profile, out):
             for member in z.infolist():
                 if member.filename.startswith(('resources/', 'splits/')) and not member.is_dir():
                     (data / 'mtob' / Path(member.filename).name).write_bytes(z.read(member, pwd=b'kalamang'))
+    paths = [data / 'longhealth.json'] if benchmark == 'longhealth' else [archive, *sorted((data / 'mtob').glob('*'))]
+    return {'source_url': url, 'files': {p.relative_to(data).as_posix(): sha(p) for p in paths}}
+
+
+def prepare(cfg, benchmark, profile, out):
+    _, _, s = recipe(cfg, benchmark, profile)
+    evaluated = prepare_evaluation(cfg, benchmark, out)
+    data = out / 'data'
+    ds = cfg['benchmarks'][benchmark]
     tokenizer = tokenizer_for(cfg)
     other = tokenizer_for(cfg, '8B')
     if tokenizer.get_vocab() != other.get_vocab() or tokenizer.chat_template != other.chat_template:
         raise ValueError('Teacher/student tokenizers differ')
     sources = prepare_conversations(ds['conversations'], s['samples'], data, tokenizer)
-    return {'benchmark': benchmark, 'samples': s['samples'], 'public_sources': sources,
-            'conversation_sha256': files_hash(conversation_paths(out)), 'source_url': url,
-            'files': {p.relative_to(data).as_posix(): sha(p) for p in sorted(data.rglob('*')) if p.is_file()},
+    return {**evaluated, 'benchmark': benchmark, 'samples': s['samples'], 'public_sources': sources,
+            'conversation_sha256': files_hash(conversation_paths(out)),
+            'files': {**evaluated['files'], **{p.relative_to(data).as_posix(): sha(p) for p in conversation_paths(out)}},
             'tokenizer_vocab_sha256': hashlib.sha256(json.dumps(tokenizer.get_vocab(), sort_keys=True).encode()).hexdigest(),
             'chat_template_sha256': hashlib.sha256(tokenizer.chat_template.encode()).hexdigest()}
 
@@ -291,11 +300,151 @@ def train_config(cfg, benchmark, profile, out, condition, seed):
     native.seed = seed
     native.max_optimizer_steps = s['max_steps']
     native.global_batch_size = s.get('global_batch', native.global_batch_size)
-    for evaluation in native.generate_evals:
-        evaluation.batch_size = s.get('eval_batch_size', evaluation.batch_size)
-        if benchmark == 'longhealth':
-            evaluation.dataset.max_questions = s['eval_questions']
+    native.generate_evals = [evaluation_config(cfg, benchmark, profile)]
     return native
+
+
+def evaluation_config(cfg, benchmark, profile):
+    native, _, settings = recipe(cfg, benchmark, profile)
+    evaluation = native.generate_evals[0]
+    evaluation.batch_size = settings.get('eval_batch_size', evaluation.batch_size)
+    if benchmark == 'longhealth':
+        evaluation.dataset.max_questions = settings['eval_questions']
+    return evaluation
+
+
+def icl_config(cfg, benchmark, profile):
+    if benchmark not in cfg['icl']['benchmarks']:
+        raise ValueError(f'ICL is not configured for {benchmark}')
+    generator = importlib.import_module('examples.benchmarks.longhealth.baseline_longhealth').configs[0].generator.model_copy(deep=True)
+    evaluation = evaluation_config(cfg, benchmark, profile)
+    generator.tokenizer = cfg['models']['4B']['id']
+    generator.temperature = evaluation.temperature
+    generator.max_completion_tokens = evaluation.generate_max_new_tokens
+    generator.enable_thinking = getattr(evaluation.dataset, 'cot', getattr(evaluation.dataset, 'use_cot', False))
+    generator.max_context_tokens = None
+    return generator, evaluation
+
+
+def icl_prompt_ids(tokenizer, system_prompt, question, thinking, max_tokens, limit):
+    messages = [{'role': 'system', 'content': system_prompt}, {'role': 'user', 'content': question}]
+    ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, enable_thinking=thinking)
+    if len(ids) + max_tokens > limit:
+        raise ValueError(f'ICL prompt ({len(ids)} tokens) plus output ({max_tokens}) exceeds {limit}; full context is required')
+    return ids
+
+
+def prepare_icl(cfg, benchmark, profile, out):
+    generator, evaluation = icl_config(cfg, benchmark, profile)
+    prepared = prepare_evaluation(cfg, benchmark, out)
+    tokenizer = tokenizer_for(cfg)
+    corpus = generator.context.instantiate().to_string()
+    system_prompt = generator.system_prompt_template.format(content=corpus)
+    (out / 'data/icl-corpus.txt').write_text(corpus)
+    (out / 'data/icl-system.txt').write_text(system_prompt)
+    dataset = evaluation.dataset.instantiate(tokenizer=tokenizer, seed=cfg['seed'])
+    prefix = tokenizer.apply_chat_template([{'role': 'system', 'content': system_prompt}], add_generation_prompt=False)
+    lengths = []
+    for i in range(len(dataset)):
+        ids = icl_prompt_ids(tokenizer, system_prompt, dataset[i].prompt, generator.enable_thinking,
+                             generator.max_completion_tokens, cfg['icl']['max_context_tokens'])
+        if ids[:len(prefix)] != prefix:
+            raise ValueError('ICL chat template does not preserve the common system prefix')
+        lengths.append(len(ids))
+    write_json(out / 'icl-config.json', {'model': cfg['models']['4B'], 'patient_ids': generator.context.patient_ids,
+        'system_prompt_template': generator.system_prompt_template, 'temperature': generator.temperature,
+        'max_completion_tokens': generator.max_completion_tokens, 'enable_thinking': generator.enable_thinking,
+        'batch_size': 1, 'attention_implementation': 'sdpa', **cfg['icl']})
+    return {**prepared, 'benchmark': benchmark, 'questions': len(dataset), 'context_tokens': len(tokenizer.encode(corpus)),
+            'max_prompt_tokens': max(lengths), 'context_truncated': False,
+            'context_setup': 'patient_01_to_10',
+            'files': {**prepared['files'], **{name: sha(out / 'data' / name)
+                      for name in ['icl-corpus.txt', 'icl-system.txt']}}}
+
+
+class PromptClient:
+    """HF transport for native ICLBaseline, sharing the ordinary system-prompt KV cache."""
+    def __init__(self, model, tokenizer, system_prompt, settings):
+        from transformers import DynamicCache
+        import torch
+        self.model, self.tokenizer, self.settings = model, tokenizer, settings
+        self.system_prompt = system_prompt
+        self.max_prompt_tokens = 0
+        self.prefix = tokenizer.apply_chat_template([{'role': 'system', 'content': system_prompt}], add_generation_prompt=False)
+        self.cache = DynamicCache()
+        with torch.inference_mode():
+            for start in range(0, len(self.prefix), settings['prefill_chunk_tokens']):
+                chunk = self.prefix[start:start + settings['prefill_chunk_tokens']]
+                model(input_ids=torch.tensor([chunk], device=model.device), past_key_values=self.cache,
+                      use_cache=True, logits_to_keep=1)
+                print(json.dumps({'icl_prefilled_tokens': start + len(chunk), 'total': len(self.prefix)}), flush=True)
+
+    async def chat(self, chats, max_completion_tokens, temperature, enable_thinking):
+        import torch
+        from cartridges.clients.base import ClientResponse, ClientSample
+        from cartridges.clients.usage import Usage
+        samples, prompt_tokens, completion_tokens = [], 0, 0
+        for messages in chats:
+            if len(messages) != 2 or messages[0] != {'role': 'system', 'content': self.system_prompt}:
+                raise ValueError('ICL system prompt changed')
+            ids = icl_prompt_ids(self.tokenizer, self.system_prompt, messages[1]['content'], enable_thinking,
+                                 max_completion_tokens, self.settings['max_context_tokens'])
+            if ids[:len(self.prefix)] != self.prefix:
+                raise ValueError('ICL template prefix differs from the prefilled prompt')
+            self.max_prompt_tokens = max(self.max_prompt_tokens, len(ids))
+            inputs = torch.tensor([ids], device=self.model.device)
+            try:
+                with torch.inference_mode():
+                    output = self.model.generate(input_ids=inputs, attention_mask=torch.ones_like(inputs),
+                        past_key_values=self.cache, use_cache=True, logits_to_keep=1,
+                        max_new_tokens=max_completion_tokens, do_sample=temperature > 0,
+                        temperature=temperature if temperature > 0 else None, top_k=0, top_p=1.,
+                        repetition_penalty=1., eos_token_id=self.tokenizer.eos_token_id,
+                        pad_token_id=self.tokenizer.pad_token_id)
+                answer = output[0, len(ids):].tolist()
+                samples.append(ClientSample(text=self.tokenizer.decode(answer, skip_special_tokens=True), token_ids=answer))
+                prompt_tokens += len(ids); completion_tokens += len(answer)
+            finally:
+                self.cache.crop(len(self.prefix))
+        return ClientResponse(samples=samples, usage=Usage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens))
+
+
+def icl(cfg, benchmark, profile, out, seed):
+    import torch
+    from transformers import AutoConfig, AutoModelForCausalLM
+    from cartridges.evaluate import ICLBaseline, _process_batch
+    from cartridges.utils import seed_everything
+    generator_config, evaluation = icl_config(cfg, benchmark, profile)
+    tokenizer = tokenizer_for(cfg)
+    dataset = evaluation.dataset.instantiate(tokenizer=tokenizer, seed=seed)
+    spec = cfg['models']['4B']
+    config = AutoConfig.from_pretrained(spec['id'], revision=spec['revision'])
+    config.rope_scaling = cfg['icl']['rope_scaling']
+    config.max_position_embeddings = cfg['icl']['max_context_tokens']
+    model = AutoModelForCausalLM.from_pretrained(spec['id'], revision=spec['revision'], config=config,
+        torch_dtype=torch.bfloat16, attn_implementation='sdpa', device_map={'': 0}).eval().requires_grad_(False)
+    system_prompt = (out / 'data/icl-system.txt').read_text()
+    generator = ICLBaseline.__new__(ICLBaseline)
+    generator.config, generator.tokenizer, generator.system_prompt = generator_config, tokenizer, system_prompt
+    generator.client = PromptClient(model, tokenizer, system_prompt, cfg['icl'])
+    directory = out / f'seed-{seed}/ICL'
+    directory.mkdir(parents=True, exist_ok=True)
+    seed_everything(seed)
+    torch.save({'cpu': torch.get_rng_state(), 'cuda': torch.cuda.get_rng_state_all()}, directory / 'rng-eval.pt')
+    async def run():
+        rows = []
+        for i in range(len(dataset)):
+            rows.extend(await _process_batch(i, i + 1, generator, dataset, evaluation))
+            write_json(directory / 'predictions.json', rows)
+            print(json.dumps({'icl_questions': i + 1, 'total': len(dataset)}), flush=True)
+        return rows
+    rows = asyncio.run(run())
+    result = {'condition': 'ICL', 'seed': seed, **metrics(benchmark, dataset, rows),
+              'context_sha256': sha(out / 'data/icl-system.txt'), 'context_truncated': False,
+              'max_prompt_tokens': generator.client.max_prompt_tokens,
+              'rope_scaling': cfg['icl']['rope_scaling'], 'evaluation_batch_size': 1}
+    write_json(directory / 'metrics.json', result)
+    return result
 
 
 def metrics(benchmark, dataset, rows):
@@ -377,7 +526,7 @@ def evaluate(cfg, benchmark, profile, out, condition, seed):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('stage', choices=['prepare', 'score', 'train', 'evaluate'])
+    parser.add_argument('stage', choices=['prepare', 'prepare-icl', 'score', 'train', 'evaluate', 'icl'])
     parser.add_argument('--config', default=str(ROOT / 'configs/experiment.json'))
     parser.add_argument('--benchmark', choices=['longhealth', 'mtob'], default='longhealth')
     parser.add_argument('--profile', choices=['smoke', 'pilot', 'main'], default='smoke')
@@ -403,11 +552,11 @@ def main():
     environment_sha256 = sha(environment) if environment.exists() else None
     if environment_sha256:
         write_json(out / 'environments' / f'{environment_sha256}.json', read_json(environment))
-    if args.stage != 'prepare':
+    if args.stage not in ['prepare', 'prepare-icl']:
         if not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
             raise RuntimeError('CUDA with native BF16 is required')
         torch.cuda.reset_peak_memory_stats()
-        prepared = read_json(out / 'prepare.summary.json')
+        prepared = read_json(out / ('prepare-icl.summary.json' if args.stage == 'icl' else 'prepare.summary.json'))
         for filename, expected in prepared['files'].items():
             if sha(out / 'data' / filename) != expected:
                 raise ValueError('Prepared data changed')
@@ -415,8 +564,12 @@ def main():
     common = cfg, args.benchmark, args.profile, out
     if args.stage == 'prepare':
         result = prepare(*common); summary = out / 'prepare.summary.json'
+    elif args.stage == 'prepare-icl':
+        result = prepare_icl(*common); summary = out / 'prepare-icl.summary.json'
     elif args.stage == 'score':
         result = score(*common, args.teacher); summary = out / f'scores/score-{args.teacher}.summary.json'
+    elif args.stage == 'icl':
+        result = icl(*common, args.seed); summary = out / f'seed-{args.seed}/icl.summary.json'
     else:
         result = (train if args.stage == 'train' else evaluate)(*common, args.condition, args.seed)
         summary = out / f'seed-{args.seed}/{args.stage}-{args.condition}.summary.json'
