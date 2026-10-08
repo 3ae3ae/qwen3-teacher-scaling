@@ -111,7 +111,11 @@
           "accuracy": 0.39,
           "missing_answer_tags": 100
         }
-      ]
+      ],
+      "tagged_questions": 100,
+      "tagged_response_fraction": 0.5,
+      "tagged_accuracy": 0.64,
+      "missing_as_incorrect_accuracy": 0.32
     },
     "B": {
       "teacher": "8B",
@@ -177,7 +181,11 @@
           "accuracy": 0.365,
           "missing_answer_tags": 117
         }
-      ]
+      ],
+      "tagged_questions": 83,
+      "tagged_response_fraction": 0.415,
+      "tagged_accuracy": 0.7228915662650602,
+      "missing_as_incorrect_accuracy": 0.3
     },
     "ICL": {
       "teacher": null,
@@ -198,7 +206,11 @@
         "rope_type": "yarn",
         "factor": 4.0,
         "original_max_position_embeddings": 32768
-      }
+      },
+      "tagged_questions": 62,
+      "tagged_response_fraction": 0.31,
+      "tagged_accuracy": 0.9032258064516129,
+      "missing_as_incorrect_accuracy": 0.28
     }
   },
   "paired_comparisons": {
@@ -286,5 +298,22 @@
     "final_checkpoint_hashes_match_summaries": true,
     "A_score_source": "4B",
     "B_score_source": "8B"
+  },
+  "all_conditions_tagged_subset": {
+    "questions": 30,
+    "conditions": {
+      "A": {
+        "correct": 20,
+        "accuracy": 0.6666666666666666
+      },
+      "B": {
+        "correct": 24,
+        "accuracy": 0.8
+      },
+      "ICL": {
+        "correct": 26,
+        "accuracy": 0.8666666666666667
+      }
+    }
   }
 }
