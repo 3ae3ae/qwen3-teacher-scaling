@@ -65,6 +65,8 @@ Drive 연결 셀은 설치보다 앞에 있다. 연결을 승인한 런타임에
 
 ## 검증
 
-설치 셀의 검사는 공개 학습 설정 일치, tokenizer, parquet 선택·토큰 보존·prompt 구성, sparse 처리, cache 복원과 실행 경로를 확인한다. ICL에는 원본 평가 설정 일치와 작은 임의 모델의 prefill·문항 사이 cache 분리 검사를 포함한다. Colab CPU·Python 3.12.3·PyTorch 2.6.0·Transformers 4.53.0에서 설치와 15개 연결 검사를 통과했다. 실제 GPU 학습·전체 ICL 평가·Drive 동기화와 런타임 삭제는 검증 대기 상태다.
+설치 셀의 검사는 공개 학습 설정 일치, tokenizer, parquet 선택·토큰 보존·prompt 구성, sparse 처리, cache 복원과 실행 경로를 확인한다. ICL에는 원본 평가 설정 일치와 작은 임의 모델의 prefill·문항 사이 cache 분리 검사를 포함한다. Colab CPU·Python 3.12.3·PyTorch 2.6.0·Transformers 4.53.0에서 설치와 15개 연결 검사를 통과했다.
+
+[v0.4.3 LongHealth pilot](LONGHEALTH_PILOT_RESULT.md)은 Colab A100 40GB에서 A·B 각 706 updates와 ICL 전체 200문항 평가를 완료했다. Drive에서 내려받은 최종 prediction·metric·summary를 대조했고, A·B 최종 checkpoint 해시가 실행 summary와 일치했다. 세 조건의 문항 집합과 원본 채점 결과도 일치했다.
 
 [v0.1.4 pilot 결과](A_PILOT_RESULT.md)는 자체 생성 대화 512개를 사용한 이전 프로토콜의 기록이다.

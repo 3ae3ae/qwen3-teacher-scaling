@@ -1,0 +1,290 @@
+{
+  "date": "2026-10-08",
+  "release": "v0.4.3",
+  "run_name": "qwen3-v22-pilot-001",
+  "protocol_version": "2.2",
+  "source_revision": "5dc6dbe7fdf2dcb45275181587d53c391c936680",
+  "upstream_revision": "ef34ba97a06049c34820506e2c283746284ae5f0",
+  "benchmark": "longhealth",
+  "profile": "pilot",
+  "seeds": [
+    42
+  ],
+  "models": {
+    "4B": {
+      "id": "Qwen/Qwen3-4B",
+      "revision": "1cfa9a7208912126459214e8b04321603b3df60c"
+    },
+    "8B": {
+      "id": "Qwen/Qwen3-8B",
+      "revision": "b968826d9c46dd6066d109eabc6255188de91218"
+    }
+  },
+  "samples": 32768,
+  "cartridge_tokens": 2048,
+  "packed_length": 2048,
+  "global_batch_size": 32,
+  "epochs": 2,
+  "optimizer_steps": 706,
+  "evaluation": {
+    "temperature": 0.3,
+    "max_new_tokens": 512,
+    "thinking": true,
+    "A_B_batch_size": 32,
+    "ICL_batch_size": 1
+  },
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Linux-6.6.122+-x86_64-with-glibc2.35",
+    "torch": "2.6.0+cu124",
+    "cuda": "12.4",
+    "gpu": "NVIDIA A100-SXM4-40GB"
+  },
+  "fingerprints": {
+    "code_sha256": "f3a61f7938a2468e0d36063e2ac32c7f37540159eb532fd1dc39963781d6bc95",
+    "patch_sha256": "af0d44bb205e3692d7cf70c0f1e20cc579c9f4fa35151a00a5d9a398b3d6ae29",
+    "lock_sha256": "6630a6d0692027f31628f84b8511178c5c824b1ed220ebee7d007b8e27c9cad9"
+  },
+  "conversation_sha256": "8a04ae0cd98b1abdc70df597e44007710c6acb59776ed778228e76a506caac88",
+  "conditions": {
+    "A": {
+      "teacher": "4B",
+      "student": "4B",
+      "correct": 78,
+      "questions": 200,
+      "accuracy": 0.39,
+      "missing_answer_tags": 100,
+      "tagged_correct": 64,
+      "fallback_correct": 14,
+      "prediction_sha256": "63c5e38c0ad6c8d733e802483bbfba5eb7efc91f92c6fd7d31fb067434a8be24",
+      "stage_seconds": 15221.950512676995,
+      "peak_allocated_bytes": 22800494592,
+      "initial_cache_sha256": "2be7f005c9f88638846f59671a10afe383db31460108b68f7e32cec11b241d41",
+      "checkpoint_sha256": "f15911280a49bf5a5090511d48ddf5838851d21b67384378b7583d7401ba2a92",
+      "evaluations": [
+        {
+          "step": 0,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.175,
+          "missing_answer_tags": 159
+        },
+        {
+          "step": 128,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.305,
+          "missing_answer_tags": 96
+        },
+        {
+          "step": 256,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.31,
+          "missing_answer_tags": 99
+        },
+        {
+          "step": 384,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.315,
+          "missing_answer_tags": 106
+        },
+        {
+          "step": 512,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.31,
+          "missing_answer_tags": 116
+        },
+        {
+          "step": 640,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.365,
+          "missing_answer_tags": 107
+        },
+        {
+          "step": 706,
+          "final": true,
+          "questions": 200,
+          "accuracy": 0.39,
+          "missing_answer_tags": 100
+        }
+      ]
+    },
+    "B": {
+      "teacher": "8B",
+      "student": "4B",
+      "correct": 73,
+      "questions": 200,
+      "accuracy": 0.365,
+      "missing_answer_tags": 117,
+      "tagged_correct": 60,
+      "fallback_correct": 13,
+      "prediction_sha256": "f2747cd799684e732ca7cf85ba5f2b565c4367a143bf648ff52293c40ef3592c",
+      "stage_seconds": 15266.732760592997,
+      "peak_allocated_bytes": 22800614400,
+      "initial_cache_sha256": "2be7f005c9f88638846f59671a10afe383db31460108b68f7e32cec11b241d41",
+      "checkpoint_sha256": "00ee264f260fccfd57e4303f0a1e867d058c30f1effae8f19de612d87f38c9ea",
+      "evaluations": [
+        {
+          "step": 0,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.175,
+          "missing_answer_tags": 159
+        },
+        {
+          "step": 128,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.265,
+          "missing_answer_tags": 103
+        },
+        {
+          "step": 256,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.3,
+          "missing_answer_tags": 117
+        },
+        {
+          "step": 384,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.32,
+          "missing_answer_tags": 119
+        },
+        {
+          "step": 512,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.325,
+          "missing_answer_tags": 111
+        },
+        {
+          "step": 640,
+          "final": false,
+          "questions": 200,
+          "accuracy": 0.345,
+          "missing_answer_tags": 120
+        },
+        {
+          "step": 706,
+          "final": true,
+          "questions": 200,
+          "accuracy": 0.365,
+          "missing_answer_tags": 117
+        }
+      ]
+    },
+    "ICL": {
+      "teacher": null,
+      "student": "4B",
+      "correct": 71,
+      "questions": 200,
+      "accuracy": 0.355,
+      "missing_answer_tags": 138,
+      "tagged_correct": 56,
+      "fallback_correct": 15,
+      "prediction_sha256": "3db3548f3434296b680c72b3a0085ab0c66f27ff5543b6b8a42f7c7b345a7ade",
+      "stage_seconds": 24056.285067550998,
+      "peak_allocated_bytes": 27123344384,
+      "context_sha256": "8ec3308087de040b37904e0f8b42abd13dfc2a42d73467d47b9b05076c9ee9a4",
+      "context_truncated": false,
+      "max_prompt_tokens": 114219,
+      "rope_scaling": {
+        "rope_type": "yarn",
+        "factor": 4.0,
+        "original_max_position_embeddings": 32768
+      }
+    }
+  },
+  "paired_comparisons": {
+    "B-A": {
+      "difference_percentage_points": -2.5,
+      "first_only_correct": 20,
+      "second_only_correct": 25,
+      "both_correct": 53
+    },
+    "A-ICL": {
+      "difference_percentage_points": 3.5,
+      "first_only_correct": 32,
+      "second_only_correct": 25,
+      "both_correct": 46
+    },
+    "B-ICL": {
+      "difference_percentage_points": 1.0,
+      "first_only_correct": 29,
+      "second_only_correct": 27,
+      "both_correct": 44
+    }
+  },
+  "stage_seconds": {
+    "prepare.summary.json": 395.06026837600007,
+    "prepare-icl.summary.json": 72.83037342099999,
+    "scores/score-4B.summary.json": 6485.320530862,
+    "scores/score-8B.summary.json": 9573.034227948,
+    "seed-42/train-A.summary.json": 15221.950512676995,
+    "seed-42/train-B.summary.json": 15266.732760592997,
+    "seed-42/icl.summary.json": 24056.285067550998
+  },
+  "total_stage_seconds": 71071.21374142799,
+  "scoring": {
+    "4B": {
+      "teacher": "4B",
+      "conversation_sha256": "8a04ae0cd98b1abdc70df597e44007710c6acb59776ed778228e76a506caac88",
+      "scores_sha256": "da86596d91e5a43a503a398670bd099dd4ae9b74623851c25cbd57a1303c09ab",
+      "target_tokens": 25573589,
+      "top20_mass_mean": 0.9998091536678742,
+      "below_threshold_fraction": 0.00405218837293428,
+      "same_teacher_logprob_mae": 0.05480426786263024,
+      "same_teacher_logprob_max_abs": 17.74092960357666,
+      "stage": "score",
+      "seconds": 6485.320530862,
+      "peak_allocated_bytes": 9921874432,
+      "code_sha256": "f3a61f7938a2468e0d36063e2ac32c7f37540159eb532fd1dc39963781d6bc95",
+      "patch_sha256": "af0d44bb205e3692d7cf70c0f1e20cc579c9f4fa35151a00a5d9a398b3d6ae29",
+      "lock_sha256": "6630a6d0692027f31628f84b8511178c5c824b1ed220ebee7d007b8e27c9cad9",
+      "environment_sha256": "681d576e7da2c6fda6e08a48888073fd85948290ba13dc66de750aa50d108c99"
+    },
+    "8B": {
+      "teacher": "8B",
+      "conversation_sha256": "8a04ae0cd98b1abdc70df597e44007710c6acb59776ed778228e76a506caac88",
+      "scores_sha256": "e14e57fc7f1e0ea6cf22d52cd7555322f9bfdb54b3316e6a4e8a705d3f72d289",
+      "target_tokens": 25573589,
+      "top20_mass_mean": 0.999540413880469,
+      "below_threshold_fraction": 0.010218198157481925,
+      "same_teacher_logprob_mae": null,
+      "same_teacher_logprob_max_abs": null,
+      "stage": "score",
+      "seconds": 9573.034227948,
+      "peak_allocated_bytes": 18258907648,
+      "code_sha256": "f3a61f7938a2468e0d36063e2ac32c7f37540159eb532fd1dc39963781d6bc95",
+      "patch_sha256": "af0d44bb205e3692d7cf70c0f1e20cc579c9f4fa35151a00a5d9a398b3d6ae29",
+      "lock_sha256": "6630a6d0692027f31628f84b8511178c5c824b1ed220ebee7d007b8e27c9cad9",
+      "environment_sha256": "681d576e7da2c6fda6e08a48888073fd85948290ba13dc66de750aa50d108c99"
+    }
+  },
+  "paper_reference": {
+    "url": "https://arxiv.org/html/2508.17032",
+    "table": 1,
+    "correct": 71,
+    "questions": 200,
+    "accuracy": 0.355,
+    "optimizer_steps": 512,
+    "batch_size": 128,
+    "packed_length": 1024,
+    "cartridge_tokens": 2048
+  },
+  "A_difference_from_paper_percentage_points": 3.5,
+  "verification": {
+    "unique_questions_per_condition": 200,
+    "same_questions_and_answers": true,
+    "native_scoring_matches_saved_rows": true,
+    "final_checkpoint_hashes_match_summaries": true,
+    "A_score_source": "4B",
+    "B_score_source": "8B"
+  }
+}

@@ -6,6 +6,7 @@
 
 - [실험 설계](EXPERIMENT_PLAN.md)
 - [재현 정보·데이터 출처](docs/REPRODUCIBILITY.md)
+- [LongHealth A·B·ICL pilot 결과](docs/LONGHEALTH_PILOT_RESULT.md)
 - [Colab notebook](notebooks/qwen3_teacher_scaling.ipynb)
 
 ## 실행
@@ -28,4 +29,4 @@ A·B는 공개 데이터 다운로드 → teacher 재채점 → 카트리지 학
 
 기본 `AUTO_DELETE_RUNTIME=True`는 선택한 모든 조건의 평가와 결과 저장이 성공한 후 Drive를 동기화하고 런타임을 자동 삭제한다. 실행이나 백업에 오류가 발생하면 런타임을 유지한다. 계속 작업하려면 `AUTO_DELETE_RUNTIME=False`를 선택한다.
 
-Colab CPU의 Python 3.12 환경에서 설치·연결 검사를 통과했다. 실제 GPU 학습과 전체 ICL 평가는 검증 대기 상태다. 설치 셀에서 같은 검사를 수행한다.
+Colab CPU의 Python 3.12 환경에서 설치·연결 검사를 통과했다. Colab A100 40GB에서 pilot A·B 학습과 전체 ICL 200문항 평가를 완료했다. 최종 정확도는 A 39.0%, B 36.5%, ICL 35.5%다. 설치 셀에서 연결 검사를 수행한다.
